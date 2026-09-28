@@ -16,10 +16,22 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.abhi8411.Salon"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-image",
+      "expo-router",
+      "expo-sharing"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9888897e-ef2f-46b2-9215-07a3a26791b0"
+      }
     }
   }
 }

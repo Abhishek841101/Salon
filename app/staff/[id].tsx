@@ -1,0 +1,2977 @@
+
+// import React, {
+//   useCallback,
+//   useState,
+// } from "react";
+
+// import {
+//   ActivityIndicator,
+//   Alert,
+//   Pressable,
+//   RefreshControl,
+//   SafeAreaView,
+//   ScrollView,
+//   StatusBar,
+//   StyleSheet,
+//   Text,
+//   View,
+// } from "react-native";
+
+// import {
+//   router,
+//   useFocusEffect,
+//   useLocalSearchParams,
+// } from "expo-router";
+
+// import { useDispatch } from "react-redux";
+
+// import {
+//   getStylistById,
+//   deleteStylist,
+//   type Stylist,
+// } from "../../src/features/stylist/stylistSlice";
+
+// type AppDispatch = any;
+
+// export default function StaffProfileScreen() {
+//   const dispatch = useDispatch<AppDispatch>();
+
+//   const params = useLocalSearchParams<{
+//     id?: string | string[];
+//   }>();
+
+//   // Expo Router can return string | string[]
+//   const id = Array.isArray(params.id)
+//     ? params.id[0]
+//     : params.id;
+
+//   const [staff, setStaff] =
+//     useState<Stylist | null>(null);
+
+//   const [loading, setLoading] =
+//     useState(true);
+
+//   const [refreshing, setRefreshing] =
+//     useState(false);
+
+//   // =====================================================
+//   // LOAD PROFILE
+//   // =====================================================
+
+//   const loadProfile = useCallback(
+//     async () => {
+//       if (!id) {
+//         setLoading(false);
+
+//         Alert.alert(
+//           "Error",
+//           "Staff ID is missing."
+//         );
+
+//         return;
+//       }
+
+//       try {
+//         setLoading(true);
+
+//         const result =
+//           await dispatch(
+//             getStylistById(id)
+//           ).unwrap();
+
+//         console.log(
+//           "STAFF PROFILE RESPONSE:",
+//           result
+//         );
+
+//         const profile =
+//           result?.stylist ||
+//           result?.data ||
+//           result ||
+//           null;
+
+//         setStaff(profile);
+//       } catch (err: any) {
+//         console.log(
+//           "STAFF PROFILE ERROR:",
+//           err
+//         );
+
+//         setStaff(null);
+
+//         Alert.alert(
+//           "Error",
+//           typeof err === "string"
+//             ? err
+//             : err?.message ||
+//                 "Failed to load staff profile."
+//         );
+//       } finally {
+//         setLoading(false);
+//       }
+//     },
+//     [dispatch, id]
+//   );
+
+//   // =====================================================
+//   // LOAD WHEN SCREEN OPENS
+//   // =====================================================
+
+//   useFocusEffect(
+//     useCallback(() => {
+//       loadProfile();
+//     }, [loadProfile])
+//   );
+
+//   // =====================================================
+//   // REFRESH
+//   // =====================================================
+
+//   const refresh = async () => {
+//     try {
+//       setRefreshing(true);
+//       await loadProfile();
+//     } finally {
+//       setRefreshing(false);
+//     }
+//   };
+
+//   // =====================================================
+//   // DELETE STAFF
+//   // =====================================================
+
+//   const handleDelete = () => {
+//     if (!staff?._id) return;
+
+//     Alert.alert(
+//       "Delete Staff",
+//       `Are you sure you want to delete ${staff.name}?`,
+//       [
+//         {
+//           text: "Cancel",
+//           style: "cancel",
+//         },
+//         {
+//           text: "Delete",
+//           style: "destructive",
+
+//           onPress: async () => {
+//             try {
+//               await dispatch(
+//                 deleteStylist(staff._id)
+//               ).unwrap();
+
+//               Alert.alert(
+//                 "Deleted",
+//                 "Staff deleted successfully.",
+//                 [
+//                   {
+//                     text: "OK",
+//                     onPress: () =>
+//                       router.replace(
+//                         "/staff"
+//                       ),
+//                   },
+//                 ]
+//               );
+//             } catch (err: any) {
+//               Alert.alert(
+//                 "Error",
+//                 typeof err === "string"
+//                   ? err
+//                   : err?.message ||
+//                       "Failed to delete staff."
+//               );
+//             }
+//           },
+//         },
+//       ]
+//     );
+//   };
+
+//   // =====================================================
+//   // LOADING
+//   // =====================================================
+
+//   if (loading) {
+//     return (
+//       <SafeAreaView style={styles.safe}>
+//         <StatusBar
+//           barStyle="light-content"
+//           backgroundColor="#7E243A"
+//         />
+
+//         <View style={styles.loader}>
+//           <ActivityIndicator
+//             size="large"
+//             color="#7E243A"
+//           />
+
+//           <Text style={styles.loadingText}>
+//             Loading staff profile...
+//           </Text>
+//         </View>
+//       </SafeAreaView>
+//     );
+//   }
+
+//   // =====================================================
+//   // STAFF NOT FOUND
+//   // =====================================================
+
+//   if (!staff) {
+//     return (
+//       <SafeAreaView style={styles.safe}>
+//         <StatusBar
+//           barStyle="light-content"
+//           backgroundColor="#7E243A"
+//         />
+
+//         <View style={styles.empty}>
+//           <View style={styles.emptyIcon}>
+//             <Text style={styles.emptyIconText}>
+//               ?
+//             </Text>
+//           </View>
+
+//           <Text style={styles.emptyTitle}>
+//             Staff not found
+//           </Text>
+
+//           <Text style={styles.emptyText}>
+//             This staff profile could not be
+//             loaded.
+//           </Text>
+
+//           <Pressable
+//             style={styles.primaryButton}
+//             onPress={() =>
+//               router.replace("/staff")
+//             }
+//           >
+//             <Text
+//               style={
+//                 styles.primaryButtonText
+//               }
+//             >
+//               Back to Staff
+//             </Text>
+//           </Pressable>
+//         </View>
+//       </SafeAreaView>
+//     );
+//   }
+
+//   // =====================================================
+//   // SAFE VALUES
+//   // =====================================================
+
+//   const active =
+//     staff.status === "ACTIVE";
+
+//   const experience =
+//     Number(staff.experience) || 0;
+
+//   const initial =
+//     String(staff.name || "S")
+//       .charAt(0)
+//       .toUpperCase();
+
+//   // =====================================================
+//   // SCREEN
+//   // =====================================================
+
+//   return (
+//     <SafeAreaView style={styles.safe}>
+//       <StatusBar
+//         barStyle="light-content"
+//         backgroundColor="#7E243A"
+//       />
+
+//       <ScrollView
+//         showsVerticalScrollIndicator={false}
+//         refreshControl={
+//           <RefreshControl
+//             refreshing={refreshing}
+//             onRefresh={refresh}
+//             tintColor="#7E243A"
+//             colors={["#7E243A"]}
+//           />
+//         }
+//         contentContainerStyle={
+//           styles.content
+//         }
+//       >
+//         {/* =================================================
+//             PROFILE HERO
+//         ================================================= */}
+
+//         <View style={styles.hero}>
+//           {/* BACK BUTTON */}
+
+//           <Pressable
+//             style={styles.backButton}
+//             onPress={() => router.back()}
+//           >
+//             <Text style={styles.back}>
+//               ‹
+//             </Text>
+//           </Pressable>
+
+//           {/* AVATAR */}
+
+//           <View style={styles.avatar}>
+//             <Text style={styles.avatarText}>
+//               {initial}
+//             </Text>
+//           </View>
+
+//           {/* NAME */}
+
+//           <Text
+//             style={styles.name}
+//             numberOfLines={1}
+//           >
+//             {staff.name}
+//           </Text>
+
+//           {/* SPECIALIZATION */}
+
+//           <Text
+//             style={styles.specialization}
+//             numberOfLines={1}
+//           >
+//             {staff.specialization ||
+//               "Beauty Professional"}
+//           </Text>
+
+//           {/* STATUS */}
+
+//           <View
+//             style={[
+//               styles.statusBadge,
+//               active
+//                 ? styles.activeBadge
+//                 : styles.inactiveBadge,
+//             ]}
+//           >
+//             <View
+//               style={[
+//                 styles.statusDot,
+//                 active
+//                   ? styles.activeDot
+//                   : styles.inactiveDot,
+//               ]}
+//             />
+
+//             <Text
+//               style={[
+//                 styles.statusText,
+//                 active
+//                   ? styles.activeText
+//                   : styles.inactiveText,
+//               ]}
+//             >
+//               {active
+//                 ? "ACTIVE"
+//                 : "INACTIVE"}
+//             </Text>
+//           </View>
+//         </View>
+
+//         {/* =================================================
+//             QUICK STATS
+//         ================================================= */}
+
+//         <View style={styles.statsRow}>
+//           {/* EXPERIENCE */}
+
+//           <View style={styles.statCard}>
+//             <View style={styles.statIconBox}>
+//               <Text style={styles.statIcon}>
+//                 ♙
+//               </Text>
+//             </View>
+
+//             <Text style={styles.statValue}>
+//               {experience}
+//             </Text>
+
+//             <Text style={styles.statLabel}>
+//               {experience === 1
+//                 ? "Year Experience"
+//                 : "Years Experience"}
+//             </Text>
+//           </View>
+
+//           {/* CLIENTS */}
+
+//           <View style={styles.statCard}>
+//             <View style={styles.statIconBox}>
+//               <Text style={styles.statIcon}>
+//                 ♙
+//               </Text>
+//             </View>
+
+//             <Text style={styles.statValue}>
+//               —
+//             </Text>
+
+//             <Text style={styles.statLabel}>
+//               Clients Served
+//             </Text>
+//           </View>
+
+//           {/* SERVICES */}
+
+//           <View style={styles.statCard}>
+//             <View style={styles.statIconBox}>
+//               <Text style={styles.statIcon}>
+//                 ✦
+//               </Text>
+//             </View>
+
+//             <Text style={styles.statValue}>
+//               —
+//             </Text>
+
+//             <Text style={styles.statLabel}>
+//               Services
+//             </Text>
+//           </View>
+//         </View>
+
+//         {/* =================================================
+//             CONTACT INFORMATION
+//         ================================================= */}
+
+//         <View style={styles.section}>
+//           <Text style={styles.sectionTitle}>
+//             Contact Information
+//           </Text>
+
+//           {/* PHONE */}
+
+//           <View style={styles.infoRow}>
+//             <View style={styles.infoIcon}>
+//               <Text style={styles.infoIconText}>
+//                 ☎
+//               </Text>
+//             </View>
+
+//             <View style={styles.infoContent}>
+//               <Text style={styles.infoLabel}>
+//                 Phone
+//               </Text>
+
+//               <Text style={styles.infoValue}>
+//                 {staff.phone ||
+//                   "Phone not added"}
+//               </Text>
+//             </View>
+//           </View>
+
+//           <View style={styles.line} />
+
+//           {/* EMAIL */}
+
+//           <View style={styles.infoRow}>
+//             <View style={styles.infoIcon}>
+//               <Text style={styles.infoIconText}>
+//                 ✉
+//               </Text>
+//             </View>
+
+//             <View style={styles.infoContent}>
+//               <Text style={styles.infoLabel}>
+//                 Email
+//               </Text>
+
+//               <Text style={styles.infoValue}>
+//                 {staff.email ||
+//                   "Email not added"}
+//               </Text>
+//             </View>
+//           </View>
+//         </View>
+
+//         {/* =================================================
+//             PROFESSIONAL DETAILS
+//         ================================================= */}
+
+//         <View style={styles.section}>
+//           <Text style={styles.sectionTitle}>
+//             Professional Details
+//           </Text>
+
+//           {/* SPECIALIZATION */}
+
+//           <View style={styles.detailRow}>
+//             <Text style={styles.detailLabel}>
+//               Specialization
+//             </Text>
+
+//             <Text
+//               style={styles.detailValue}
+//               numberOfLines={2}
+//             >
+//               {staff.specialization ||
+//                 "Not specified"}
+//             </Text>
+//           </View>
+
+//           <View style={styles.line} />
+
+//           {/* EXPERIENCE */}
+
+//           <View style={styles.detailRow}>
+//             <Text style={styles.detailLabel}>
+//               Experience
+//             </Text>
+
+//             <Text style={styles.detailValue}>
+//               {experience}{" "}
+//               {experience === 1
+//                 ? "year"
+//                 : "years"}
+//             </Text>
+//           </View>
+
+//           <View style={styles.line} />
+
+//           {/* STATUS */}
+
+//           <View style={styles.detailRow}>
+//             <Text style={styles.detailLabel}>
+//               Status
+//             </Text>
+
+//             <Text
+//               style={[
+//                 styles.detailValue,
+//                 {
+//                   color: active
+//                     ? "#25834A"
+//                     : "#A13D3D",
+//                 },
+//               ]}
+//             >
+//               {active
+//                 ? "Active"
+//                 : "Inactive"}
+//             </Text>
+//           </View>
+//         </View>
+
+//         {/* =================================================
+//             PERFORMANCE
+//         ================================================= */}
+
+//         <View style={styles.section}>
+//           <View style={styles.sectionHeader}>
+//             <View>
+//               <Text style={styles.sectionTitle}>
+//                 Performance
+//               </Text>
+
+//               <Text
+//                 style={
+//                   styles.sectionSubtitle
+//                 }
+//               >
+//                 Service activity
+//               </Text>
+//             </View>
+
+//             <Text style={styles.performanceIcon}>
+//               ✦
+//             </Text>
+//           </View>
+
+//           <View style={styles.performanceRow}>
+//             <View
+//               style={
+//                 styles.performanceItem
+//               }
+//             >
+//               <Text
+//                 style={
+//                   styles.performanceValue
+//                 }
+//               >
+//                 —
+//               </Text>
+
+//               <Text
+//                 style={
+//                   styles.performanceLabel
+//                 }
+//               >
+//                 Clients
+//               </Text>
+//             </View>
+
+//             <View
+//               style={
+//                 styles.performanceDivider
+//               }
+//             />
+
+//             <View
+//               style={
+//                 styles.performanceItem
+//               }
+//             >
+//               <Text
+//                 style={
+//                   styles.performanceValue
+//                 }
+//               >
+//                 —
+//               </Text>
+
+//               <Text
+//                 style={
+//                   styles.performanceLabel
+//                 }
+//               >
+//                 Services
+//               </Text>
+//             </View>
+
+//             <View
+//               style={
+//                 styles.performanceDivider
+//               }
+//             />
+
+//             <View
+//               style={
+//                 styles.performanceItem
+//               }
+//             >
+//               <Text
+//                 style={
+//                   styles.performanceValue
+//                 }
+//               >
+//                 ₹—
+//               </Text>
+
+//               <Text
+//                 style={
+//                   styles.performanceLabel
+//                 }
+//               >
+//                 Revenue
+//               </Text>
+//             </View>
+//           </View>
+//         </View>
+
+//         {/* =================================================
+//             ACTIONS
+//         ================================================= */}
+
+//         <View style={styles.actions}>
+//           {/* EDIT */}
+
+//           <Pressable
+//             style={styles.editButton}
+//             onPress={() =>
+//               router.push({
+//                 pathname: "/staff/add",
+//                 params: {
+//                   id: staff._id,
+//                 },
+//               })
+//             }
+//           >
+//             <Text style={styles.editIcon}>
+//               ✎
+//             </Text>
+
+//             <Text style={styles.editText}>
+//               Edit Profile
+//             </Text>
+//           </Pressable>
+
+//           {/* DELETE */}
+
+//           <Pressable
+//             style={styles.deleteButton}
+//             onPress={handleDelete}
+//           >
+//             <Text style={styles.deleteIcon}>
+//               ×
+//             </Text>
+
+//             <Text style={styles.deleteText}>
+//               Delete Staff
+//             </Text>
+//           </Pressable>
+//         </View>
+//       </ScrollView>
+//     </SafeAreaView>
+//   );
+// }
+
+// // =====================================================
+// // STYLES
+// // =====================================================
+
+// const styles = StyleSheet.create({
+//   safe: {
+//     flex: 1,
+//     backgroundColor: "#F8F2EF",
+//   },
+
+//   content: {
+//     paddingBottom: 35,
+//   },
+
+//   // ===================================================
+//   // HERO
+//   // ===================================================
+
+//   hero: {
+//     backgroundColor: "#7E243A",
+//     paddingTop: 24,
+//     paddingBottom: 32,
+//     alignItems: "center",
+
+//     borderBottomLeftRadius: 34,
+//     borderBottomRightRadius: 34,
+//   },
+
+//   backButton: {
+//     position: "absolute",
+//     left: 18,
+//     top: 18,
+
+//     width: 44,
+//     height: 44,
+
+//     borderRadius: 15,
+
+//     backgroundColor:
+//       "rgba(255,255,255,0.16)",
+
+//     justifyContent: "center",
+//     alignItems: "center",
+//   },
+
+//   back: {
+//     color: "#FFFFFF",
+//     fontSize: 34,
+//     lineHeight: 38,
+//     fontWeight: "300",
+//   },
+
+//   avatar: {
+//     width: 94,
+//     height: 94,
+
+//     borderRadius: 31,
+
+//     backgroundColor: "#FFFFFF",
+
+//     justifyContent: "center",
+//     alignItems: "center",
+
+//     marginTop: 20,
+//     marginBottom: 13,
+
+//     shadowColor: "#000",
+//     shadowOpacity: 0.12,
+//     shadowRadius: 12,
+//     shadowOffset: {
+//       width: 0,
+//       height: 5,
+//     },
+//     elevation: 5,
+//   },
+
+//   avatarText: {
+//     color: "#7E243A",
+//     fontSize: 38,
+//     fontWeight: "900",
+//   },
+
+//   name: {
+//     color: "#FFFFFF",
+//     fontSize: 25,
+//     fontWeight: "900",
+//     maxWidth: "78%",
+//   },
+
+//   specialization: {
+//     color: "#F5DDE5",
+//     fontSize: 13,
+//     marginTop: 5,
+//     maxWidth: "70%",
+//   },
+
+//   statusBadge: {
+//     marginTop: 13,
+
+//     flexDirection: "row",
+//     alignItems: "center",
+
+//     paddingHorizontal: 13,
+//     paddingVertical: 7,
+
+//     borderRadius: 16,
+//   },
+
+//   activeBadge: {
+//     backgroundColor: "#E7F7ED",
+//   },
+
+//   inactiveBadge: {
+//     backgroundColor: "#F8EAEA",
+//   },
+
+//   statusDot: {
+//     width: 7,
+//     height: 7,
+//     borderRadius: 4,
+//     marginRight: 6,
+//   },
+
+//   activeDot: {
+//     backgroundColor: "#299953",
+//   },
+
+//   inactiveDot: {
+//     backgroundColor: "#C34B4B",
+//   },
+
+//   statusText: {
+//     fontSize: 9,
+//     fontWeight: "900",
+//   },
+
+//   activeText: {
+//     color: "#25834A",
+//   },
+
+//   inactiveText: {
+//     color: "#A13D3D",
+//   },
+
+//   // ===================================================
+//   // STATS
+//   // ===================================================
+
+//   statsRow: {
+//     flexDirection: "row",
+
+//     paddingHorizontal: 14,
+
+//     marginTop: -16,
+
+//     gap: 8,
+//   },
+
+//   statCard: {
+//     flex: 1,
+
+//     backgroundColor: "#FFFFFF",
+
+//     borderRadius: 19,
+
+//     paddingVertical: 13,
+//     paddingHorizontal: 5,
+
+//     alignItems: "center",
+
+//     borderWidth: 1,
+//     borderColor: "#EEE3E0",
+
+//     shadowColor: "#000",
+//     shadowOpacity: 0.04,
+//     shadowRadius: 8,
+//     shadowOffset: {
+//       width: 0,
+//       height: 3,
+//     },
+
+//     elevation: 2,
+//   },
+
+//   statIconBox: {
+//     width: 30,
+//     height: 30,
+
+//     borderRadius: 10,
+
+//     backgroundColor: "#F8E9ED",
+
+//     justifyContent: "center",
+//     alignItems: "center",
+//   },
+
+//   statIcon: {
+//     color: "#7E243A",
+//     fontSize: 15,
+//   },
+
+//   statValue: {
+//     fontSize: 19,
+//     fontWeight: "900",
+//     color: "#39262D",
+//     marginTop: 5,
+//   },
+
+//   statLabel: {
+//     fontSize: 8.5,
+//     color: "#95868B",
+//     textAlign: "center",
+//     marginTop: 2,
+//   },
+
+//   // ===================================================
+//   // SECTION
+//   // ===================================================
+
+//   section: {
+//     backgroundColor: "#FFFFFF",
+
+//     marginHorizontal: 14,
+//     marginTop: 14,
+
+//     borderRadius: 21,
+
+//     padding: 17,
+
+//     borderWidth: 1,
+//     borderColor: "#EEE3E0",
+
+//     shadowColor: "#000",
+//     shadowOpacity: 0.025,
+//     shadowRadius: 8,
+//     shadowOffset: {
+//       width: 0,
+//       height: 3,
+//     },
+
+//     elevation: 1,
+//   },
+
+//   sectionTitle: {
+//     fontSize: 16,
+//     fontWeight: "800",
+//     color: "#3B2930",
+//     marginBottom: 15,
+//   },
+
+//   sectionSubtitle: {
+//     fontSize: 11,
+//     color: "#9A8A90",
+//     marginTop: -10,
+//     marginBottom: 13,
+//   },
+
+//   sectionHeader: {
+//     flexDirection: "row",
+//     alignItems: "flex-start",
+//     justifyContent: "space-between",
+//   },
+
+//   performanceIcon: {
+//     width: 35,
+//     height: 35,
+
+//     borderRadius: 12,
+
+//     backgroundColor: "#F8E9ED",
+
+//     textAlign: "center",
+//     textAlignVertical: "center",
+
+//     color: "#7E243A",
+//     fontSize: 17,
+//   },
+
+//   // ===================================================
+//   // CONTACT
+//   // ===================================================
+
+//   infoRow: {
+//     flexDirection: "row",
+//     alignItems: "center",
+//   },
+
+//   infoIcon: {
+//     width: 41,
+//     height: 41,
+
+//     borderRadius: 13,
+
+//     backgroundColor: "#F5E7EB",
+
+//     justifyContent: "center",
+//     alignItems: "center",
+//   },
+
+//   infoIconText: {
+//     color: "#7E243A",
+//     fontSize: 16,
+//   },
+
+//   infoContent: {
+//     flex: 1,
+//     marginLeft: 12,
+//   },
+
+//   infoLabel: {
+//     fontSize: 10,
+//     color: "#9A8A90",
+//     fontWeight: "700",
+//   },
+
+//   infoValue: {
+//     fontSize: 14,
+//     color: "#45343A",
+//     fontWeight: "700",
+//     marginTop: 3,
+//   },
+
+//   line: {
+//     height: 1,
+//     backgroundColor: "#F0E8E6",
+//     marginVertical: 13,
+//   },
+
+//   // ===================================================
+//   // DETAILS
+//   // ===================================================
+
+//   detailRow: {
+//     flexDirection: "row",
+//     justifyContent: "space-between",
+//     alignItems: "center",
+//   },
+
+//   detailLabel: {
+//     fontSize: 12,
+//     color: "#94848A",
+//     flex: 1,
+//   },
+
+//   detailValue: {
+//     fontSize: 13,
+//     color: "#45343A",
+//     fontWeight: "800",
+//     maxWidth: "62%",
+//     textAlign: "right",
+//   },
+
+//   // ===================================================
+//   // PERFORMANCE
+//   // ===================================================
+
+//   performanceRow: {
+//     flexDirection: "row",
+//     alignItems: "center",
+//     backgroundColor: "#FBF7F5",
+//     borderRadius: 16,
+//     paddingVertical: 15,
+//   },
+
+//   performanceItem: {
+//     flex: 1,
+//     alignItems: "center",
+//   },
+
+//   performanceValue: {
+//     fontSize: 19,
+//     fontWeight: "900",
+//     color: "#7E243A",
+//   },
+
+//   performanceLabel: {
+//     fontSize: 9,
+//     color: "#95868B",
+//     marginTop: 3,
+//   },
+
+//   performanceDivider: {
+//     width: 1,
+//     height: 34,
+//     backgroundColor: "#E9DDDA",
+//   },
+
+//   // ===================================================
+//   // ACTIONS
+//   // ===================================================
+
+//   actions: {
+//     paddingHorizontal: 14,
+//     marginTop: 16,
+//     gap: 10,
+//   },
+
+//   editButton: {
+//     height: 52,
+
+//     borderRadius: 16,
+
+//     backgroundColor: "#7E243A",
+
+//     justifyContent: "center",
+//     alignItems: "center",
+
+//     flexDirection: "row",
+//     gap: 8,
+//   },
+
+//   editIcon: {
+//     color: "#FFFFFF",
+//     fontSize: 17,
+//   },
+
+//   editText: {
+//     color: "#FFFFFF",
+//     fontSize: 14,
+//     fontWeight: "800",
+//   },
+
+//   deleteButton: {
+//     height: 50,
+
+//     borderRadius: 16,
+
+//     backgroundColor: "#FBECEC",
+
+//     justifyContent: "center",
+//     alignItems: "center",
+
+//     flexDirection: "row",
+//     gap: 7,
+//   },
+
+//   deleteIcon: {
+//     color: "#B23B3B",
+//     fontSize: 21,
+//     lineHeight: 20,
+//   },
+
+//   deleteText: {
+//     color: "#B23B3B",
+//     fontSize: 14,
+//     fontWeight: "800",
+//   },
+
+//   // ===================================================
+//   // LOADING
+//   // ===================================================
+
+//   loader: {
+//     flex: 1,
+//     justifyContent: "center",
+//     alignItems: "center",
+//   },
+
+//   loadingText: {
+//     marginTop: 10,
+//     color: "#806E75",
+//     fontSize: 13,
+//   },
+
+//   // ===================================================
+//   // EMPTY
+//   // ===================================================
+
+//   empty: {
+//     flex: 1,
+//     justifyContent: "center",
+//     alignItems: "center",
+//     padding: 30,
+//   },
+
+//   emptyIcon: {
+//     width: 70,
+//     height: 70,
+
+//     borderRadius: 24,
+
+//     backgroundColor: "#F5E7EB",
+
+//     justifyContent: "center",
+//     alignItems: "center",
+
+//     marginBottom: 15,
+//   },
+
+//   emptyIconText: {
+//     color: "#7E243A",
+//     fontSize: 30,
+//     fontWeight: "900",
+//   },
+
+//   emptyTitle: {
+//     fontSize: 20,
+//     fontWeight: "800",
+//     color: "#3B2930",
+//     marginBottom: 7,
+//   },
+
+//   emptyText: {
+//     fontSize: 12,
+//     color: "#95868B",
+//     textAlign: "center",
+//     marginBottom: 20,
+//   },
+
+//   primaryButton: {
+//     backgroundColor: "#7E243A",
+
+//     paddingHorizontal: 22,
+//     paddingVertical: 13,
+
+//     borderRadius: 14,
+//   },
+
+//   primaryButtonText: {
+//     color: "#FFFFFF",
+//     fontWeight: "800",
+//     fontSize: 13,
+//   },
+// });
+
+
+
+
+
+
+
+import React, {
+  useCallback,
+  useState,
+} from "react";
+
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
+import {
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+} from "expo-router";
+
+import { useDispatch } from "react-redux";
+
+import {
+  deleteStylist,
+  getStylistProfile,
+  getStylistAttendance,
+  getAttendanceSummary,
+
+  type Stylist,
+  type StylistProfile,
+  type StylistAttendance,
+  type AttendanceSummary,
+} from "../../src/features/stylist/stylistSlice";
+
+type AppDispatch = any;
+
+const money = (
+  value: any
+) => {
+  return `₹${Number(
+    value || 0
+  ).toLocaleString("en-IN")}`;
+};
+
+const formatTime = (
+  value?: string | null
+) => {
+  if (!value) {
+    return "--:--";
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return value;
+  }
+
+  return date.toLocaleTimeString(
+    "en-IN",
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }
+  );
+};
+
+const formatDate = (
+  value?: string
+) => {
+  if (!value) {
+    return "--";
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return value;
+  }
+
+  return date.toLocaleDateString(
+    "en-IN",
+    {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }
+  );
+};
+
+export default function StaffProfileScreen() {
+  const dispatch =
+    useDispatch<AppDispatch>();
+
+  const params =
+    useLocalSearchParams<{
+      id?: string | string[];
+    }>();
+
+  const id = Array.isArray(
+    params.id
+  )
+    ? params.id[0]
+    : params.id;
+
+  const [staff, setStaff] =
+    useState<Stylist | null>(
+      null
+    );
+
+  const [profile, setProfile] =
+    useState<StylistProfile | null>(
+      null
+    );
+
+  const [attendance, setAttendance] =
+    useState<StylistAttendance[]>(
+      []
+    );
+
+  const [summary, setSummary] =
+    useState<AttendanceSummary | null>(
+      null
+    );
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [refreshing, setRefreshing] =
+    useState(false);
+
+  // =====================================================
+  // DATE
+  // =====================================================
+
+  const formatDateKey = (
+    date: Date
+  ) => {
+    const year =
+      date.getFullYear();
+
+    const month = String(
+      date.getMonth() + 1
+    ).padStart(2, "0");
+
+    const day = String(
+      date.getDate()
+    ).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  };
+
+  const today =
+    formatDateKey(
+      new Date()
+    );
+
+  const firstDayOfMonth =
+    formatDateKey(
+      new Date(
+        new Date().getFullYear(),
+        new Date().getMonth(),
+        1
+      )
+    );
+
+  // =====================================================
+  // LOAD
+  // =====================================================
+
+  const loadProfile =
+    useCallback(async () => {
+      if (!id) {
+        setLoading(false);
+
+        Alert.alert(
+          "Error",
+          "Staff ID is missing."
+        );
+
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        const profileResult =
+          await dispatch(
+            getStylistProfile({
+              id,
+              period: "month",
+            })
+          ).unwrap();
+
+        const loadedProfile =
+          profileResult
+            ?.data ||
+          profileResult;
+
+        setProfile(
+          loadedProfile
+        );
+
+        setStaff(
+          loadedProfile
+            ?.stylist ||
+            null
+        );
+
+        // ================================================
+        // ATTENDANCE HISTORY
+        // ================================================
+
+        const attendanceResult =
+          await dispatch(
+            getStylistAttendance({
+              stylistId: id,
+              startDate:
+                firstDayOfMonth,
+              endDate: today,
+            })
+          ).unwrap();
+
+        setAttendance(
+          attendanceResult
+            ?.attendance ||
+            []
+        );
+
+        // ================================================
+        // ATTENDANCE SUMMARY
+        // ================================================
+
+        const summaryResult =
+          await dispatch(
+            getAttendanceSummary({
+              stylistId: id,
+              startDate:
+                firstDayOfMonth,
+              endDate: today,
+            })
+          ).unwrap();
+
+        setSummary(
+          summaryResult?.summary ||
+            null
+        );
+      } catch (error: any) {
+        console.log(
+          "STAFF PROFILE ERROR:",
+          error
+        );
+
+        Alert.alert(
+          "Error",
+          String(
+            error ||
+              "Failed to load staff profile"
+          )
+        );
+      } finally {
+        setLoading(false);
+      }
+    }, [
+      dispatch,
+      id,
+      firstDayOfMonth,
+      today,
+    ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile])
+  );
+
+  // =====================================================
+  // REFRESH
+  // =====================================================
+
+  const refresh =
+    async () => {
+      try {
+        setRefreshing(true);
+
+        await loadProfile();
+      } finally {
+        setRefreshing(false);
+      }
+    };
+
+  // =====================================================
+  // DELETE
+  // =====================================================
+
+  const handleDelete =
+    () => {
+      if (!staff?._id) {
+        return;
+      }
+
+      Alert.alert(
+        "Delete Staff",
+        `Are you sure you want to delete ${staff.name}?`,
+        [
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+
+          {
+            text: "Delete",
+            style: "destructive",
+
+            onPress:
+              async () => {
+                try {
+                  await dispatch(
+                    deleteStylist(
+                      staff._id
+                    )
+                  ).unwrap();
+
+                  router.replace(
+                    "/staff"
+                  );
+                } catch (
+                  error: any
+                ) {
+                  Alert.alert(
+                    "Error",
+                    String(
+                      error ||
+                        "Failed to delete staff"
+                    )
+                  );
+                }
+              },
+          },
+        ]
+      );
+    };
+
+  // =====================================================
+  // LOADING
+  // =====================================================
+
+  if (
+    loading &&
+    !staff
+  ) {
+    return (
+      <SafeAreaView
+        style={styles.safe}
+      >
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="#F8F2EF"
+        />
+
+        <View
+          style={
+            styles.loader
+          }
+        >
+          <ActivityIndicator
+            size="large"
+            color="#7E243A"
+          />
+
+          <Text
+            style={
+              styles.loadingText
+            }
+          >
+            Loading staff profile...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // =====================================================
+  // EMPTY
+  // =====================================================
+
+  if (!staff) {
+    return (
+      <SafeAreaView
+        style={styles.safe}
+      >
+        <View
+          style={styles.empty}
+        >
+          <Text
+            style={
+              styles.emptyTitle
+            }
+          >
+            Staff not found
+          </Text>
+
+          <Pressable
+            style={
+              styles.primaryButton
+            }
+            onPress={() =>
+              router.replace(
+                "/staff"
+              )
+            }
+          >
+            <Text
+              style={
+                styles.primaryButtonText
+              }
+            >
+              Back to Staff
+            </Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // =====================================================
+  // DATA
+  // =====================================================
+
+  const stats =
+    profile?.stats;
+
+  const salary =
+    profile?.salary;
+
+  const active =
+    staff.status ===
+    "ACTIVE";
+
+  const experience =
+    Number(
+      staff.experience || 0
+    );
+
+  const initial =
+    staff.name
+      ?.charAt(0)
+      ?.toUpperCase() ||
+    "S";
+
+  return (
+    <SafeAreaView
+      style={styles.safe}
+    >
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#7E243A"
+      />
+
+      <ScrollView
+        showsVerticalScrollIndicator={
+          false
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={
+              refreshing
+            }
+            onRefresh={
+              refresh
+            }
+            colors={[
+              "#7E243A",
+            ]}
+          />
+        }
+        contentContainerStyle={
+          styles.content
+        }
+      >
+        {/* =================================================
+            HERO
+        ================================================= */}
+
+        <View
+          style={styles.hero}
+        >
+          <Pressable
+            style={
+              styles.heroBack
+            }
+            onPress={() =>
+              router.back()
+            }
+          >
+            <Text
+              style={
+                styles.heroBackText
+              }
+            >
+              ‹
+            </Text>
+          </Pressable>
+
+          <View
+            style={
+              styles.heroAvatar
+            }
+          >
+            <Text
+              style={
+                styles.heroAvatarText
+              }
+            >
+              {initial}
+            </Text>
+          </View>
+
+          <Text
+            style={
+              styles.heroName
+            }
+          >
+            {staff.name}
+          </Text>
+
+          <Text
+            style={
+              styles.heroSpecialization
+            }
+          >
+            {staff.specialization ||
+              "Beauty Professional"}
+          </Text>
+
+          <View
+            style={[
+              styles.heroStatus,
+              active
+                ? styles.heroActive
+                : styles.heroInactive,
+            ]}
+          >
+            <Text
+              style={
+                styles.heroStatusText
+              }
+            >
+              {active
+                ? "ACTIVE"
+                : "INACTIVE"}
+            </Text>
+          </View>
+        </View>
+
+        {/* =================================================
+            ACTIONS
+        ================================================= */}
+
+        <View
+          style={styles.actionRow}
+        >
+          <Pressable
+            style={
+              styles.editButton
+            }
+            onPress={() =>
+              router.push(
+                `/staff/add?id=${staff._id}`
+              )
+            }
+          >
+            <Text
+              style={
+                styles.editText
+              }
+            >
+              Edit Staff
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={
+              styles.deleteButton
+            }
+            onPress={
+              handleDelete
+            }
+          >
+            <Text
+              style={
+                styles.deleteText
+              }
+            >
+              Delete
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* =================================================
+            QUICK STATS
+        ================================================= */}
+
+        <View
+          style={styles.grid}
+        >
+          <StatCard
+            label="Experience"
+            value={`${experience} yr`}
+          />
+
+          <StatCard
+            label="Services"
+            value={String(
+              stats
+                ?.completedServices ||
+                0
+            )}
+          />
+
+          <StatCard
+            label="Clients"
+            value={String(
+              stats
+                ?.totalClients ||
+                0
+            )}
+          />
+
+          <StatCard
+            label="Revenue"
+            value={money(
+              stats
+                ?.totalRevenue
+            )}
+          />
+        </View>
+
+        {/* =================================================
+            SALARY SETTINGS
+        ================================================= */}
+
+        <Section
+          title="Salary Settings"
+        >
+          <InfoRow
+            label="Salary Type"
+            value={
+              staff.salaryType ||
+              "MONTHLY"
+            }
+          />
+
+          <InfoRow
+            label="Monthly Salary"
+            value={money(
+              salary
+                ?.monthlySalary ??
+                staff.monthlySalary
+            )}
+          />
+
+          <InfoRow
+            label="Basic Salary — 8 Hours"
+            value={money(
+              salary
+                ?.basicSalary8h ??
+                staff.basicSalary8h
+            )}
+          />
+
+          <InfoRow
+            label="Overtime / Hour"
+            value={money(
+              salary
+                ?.overtimeRatePerHour ??
+                staff.overtimeRatePerHour
+            )}
+          />
+
+          <InfoRow
+            label="Standard Hours"
+            value={`${Number(
+              salary
+                ?.standardWorkingHours ??
+                staff.standardWorkingHours ??
+                8
+            )} hours`}
+          />
+        </Section>
+
+        {/* =================================================
+            THIS MONTH
+        ================================================= */}
+
+        <Section
+          title="This Month"
+        >
+          <View
+            style={
+              styles.summaryGrid
+            }
+          >
+            <SummaryBox
+              label="Present"
+              value={String(
+                summary
+                  ?.presentDays ||
+                  0
+              )}
+            />
+
+            <SummaryBox
+              label="Absent"
+              value={String(
+                summary
+                  ?.absentDays ||
+                  0
+              )}
+            />
+
+            <SummaryBox
+              label="Half Day"
+              value={String(
+                summary
+                  ?.halfDays ||
+                  0
+              )}
+            />
+
+            <SummaryBox
+              label="Leave"
+              value={String(
+                summary
+                  ?.leaveDays ||
+                  0
+              )}
+            />
+          </View>
+
+          <InfoRow
+            label="Worked Hours"
+            value={`${Number(
+              summary
+                ?.totalWorkedHours ||
+                0
+            ).toFixed(2)} h`}
+          />
+
+          <InfoRow
+            label="Overtime Hours"
+            value={`${Number(
+              summary
+                ?.totalOvertimeHours ||
+                0
+            ).toFixed(2)} h`}
+          />
+
+          <InfoRow
+            label="Basic Salary Earned"
+            value={money(
+              summary
+                ?.basicSalaryEarned
+            )}
+          />
+
+          <InfoRow
+            label="Overtime Salary"
+            value={money(
+              summary
+                ?.overtimeSalary
+            )}
+          />
+
+          <View
+            style={
+              styles.totalBox
+            }
+          >
+            <Text
+              style={
+                styles.totalLabel
+              }
+            >
+              TOTAL SALARY EARNED
+            </Text>
+
+            <Text
+              style={
+                styles.totalValue
+              }
+            >
+              {money(
+                summary
+                  ?.totalSalaryEarned
+              )}
+            </Text>
+          </View>
+        </Section>
+
+        {/* =================================================
+            ATTENDANCE HISTORY
+        ================================================= */}
+
+        <Section
+          title="Attendance History"
+        >
+          {attendance.length ===
+          0 ? (
+            <Text
+              style={
+                styles.noAttendance
+              }
+            >
+              No attendance records
+              for this month.
+            </Text>
+          ) : (
+            attendance.map(
+              (item) => (
+                <AttendanceRow
+                  key={
+                    item._id
+                  }
+                  item={
+                    item
+                  }
+                />
+              )
+            )
+          )}
+        </Section>
+
+        {/* =================================================
+            SERVICES & REVENUE
+        ================================================= */}
+
+        <Section
+          title="Service & Revenue"
+        >
+          <InfoRow
+            label="Total Appointments"
+            value={String(
+              stats
+                ?.totalAppointments ||
+                0
+            )}
+          />
+
+          <InfoRow
+            label="Completed Services"
+            value={String(
+              stats
+                ?.completedServices ||
+                0
+            )}
+          />
+
+          <InfoRow
+            label="This Month Services"
+            value={String(
+              stats
+                ?.periodCompletedServices ||
+                0
+            )}
+          />
+
+          <InfoRow
+            label="Total Bills"
+            value={String(
+              stats
+                ?.totalBills ||
+                0
+            )}
+          />
+
+          <InfoRow
+            label="Total Revenue"
+            value={money(
+              stats
+                ?.totalRevenue
+            )}
+          />
+
+          <InfoRow
+            label="This Month Revenue"
+            value={money(
+              stats
+                ?.periodRevenue
+            )}
+          />
+
+          <InfoRow
+            label="Average Service Value"
+            value={money(
+              stats
+                ?.averageServiceValue
+            )}
+          />
+
+          <InfoRow
+            label="Pending Amount"
+            value={money(
+              stats
+                ?.pendingAmount
+            )}
+          />
+        </Section>
+
+        {/* =================================================
+            RECENT SERVICES
+        ================================================= */}
+
+        <Section
+          title="Recent Services"
+        >
+          {profile
+              ?.recentBookings
+              ?.length ? (
+            profile.recentBookings.map(
+              (
+                booking: any
+              ) => (
+                <View
+                  key={
+                    booking._id
+                  }
+                  style={
+                    styles.bookingRow
+                  }
+                >
+                  <View
+                    style={
+                      styles.bookingIcon
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.bookingIconText
+                      }
+                    >
+                      ✓
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.bookingInfo
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.bookingService
+                      }
+                    >
+                      {booking
+                        ?.service
+                        ?.name ||
+                        "Service"}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.bookingClient
+                      }
+                    >
+                      {booking
+                        ?.client
+                        ?.name ||
+                        "Client"}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.bookingDate
+                      }
+                    >
+                      {formatDate(
+                        booking.bookingDate
+                      )}
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={
+                      styles.bookingPrice
+                    }
+                  >
+                    {money(
+                      booking.price
+                    )}
+                  </Text>
+                </View>
+              )
+            )
+          ) : (
+            <Text
+              style={
+                styles.noAttendance
+              }
+            >
+              No services found.
+            </Text>
+          )}
+        </Section>
+
+        <View
+          style={{
+            height: 50,
+          }}
+        />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// =====================================================
+// SECTION
+// =====================================================
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View
+      style={styles.section}
+    >
+      <Text
+        style={
+          styles.sectionTitle
+        }
+      >
+        {title}
+      </Text>
+
+      {children}
+    </View>
+  );
+}
+
+// =====================================================
+// INFO ROW
+// =====================================================
+
+function InfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <View
+      style={styles.infoRow}
+    >
+      <Text
+        style={
+          styles.infoLabel
+        }
+      >
+        {label}
+      </Text>
+
+      <Text
+        style={
+          styles.infoValue
+        }
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+// =====================================================
+// STAT
+// =====================================================
+
+function StatCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <View
+      style={styles.statCard}
+    >
+      <Text
+        style={
+          styles.statValue
+        }
+      >
+        {value}
+      </Text>
+
+      <Text
+        style={
+          styles.statLabel
+        }
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+// =====================================================
+// SUMMARY
+// =====================================================
+
+function SummaryBox({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <View
+      style={styles.summaryBox}
+    >
+      <Text
+        style={
+          styles.summaryValue
+        }
+      >
+        {value}
+      </Text>
+
+      <Text
+        style={
+          styles.summaryLabel
+        }
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+// =====================================================
+// ATTENDANCE ROW
+// =====================================================
+
+function AttendanceRow({
+  item,
+}: {
+  item: StylistAttendance;
+}) {
+  const status =
+    item.status;
+
+  return (
+    <View
+      style={
+        styles.attendanceRow
+      }
+    >
+      <View
+        style={
+          styles.attendanceDate
+        }
+      >
+        <Text
+          style={
+            styles.attendanceDateText
+          }
+        >
+          {formatDate(
+            item.date
+          )}
+        </Text>
+      </View>
+
+      <View
+        style={
+          styles.attendanceDetails
+        }
+      >
+        <View
+          style={
+            styles.attendanceTimes
+          }
+        >
+          <Text
+            style={
+              styles.attendanceTime
+            }
+          >
+            In:{" "}
+            {formatTime(
+              item.checkIn
+            )}
+          </Text>
+
+          <Text
+            style={
+              styles.attendanceTime
+            }
+          >
+            Out:{" "}
+            {formatTime(
+              item.checkOut
+            )}
+          </Text>
+        </View>
+
+        <Text
+          style={
+            styles.attendanceHours
+          }
+        >
+          Worked{" "}
+          {Number(
+            item.workedHours ||
+              0
+          ).toFixed(2)}
+          h
+          {"  •  "}
+          OT{" "}
+          {Number(
+            item.overtimeHours ||
+              0
+          ).toFixed(2)}
+          h
+        </Text>
+      </View>
+
+      <View
+        style={[
+          styles.attendanceBadge,
+          status ===
+            "PRESENT" &&
+            styles.badgePresent,
+          status ===
+            "ABSENT" &&
+            styles.badgeAbsent,
+          status ===
+            "HALF_DAY" &&
+            styles.badgeHalf,
+          status ===
+            "LEAVE" &&
+            styles.badgeLeave,
+        ]}
+      >
+        <Text
+          style={
+            styles.attendanceBadgeText
+          }
+        >
+          {status ===
+          "HALF_DAY"
+            ? "HALF DAY"
+            : status}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// =====================================================
+// STYLES
+// =====================================================
+
+const styles =
+  StyleSheet.create({
+    safe: {
+      flex: 1,
+      backgroundColor:
+        "#F8F2EF",
+    },
+
+    content: {
+      paddingBottom: 30,
+    },
+
+    loader: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent:
+        "center",
+    },
+
+    loadingText: {
+      marginTop: 12,
+      color: "#7E243A",
+      fontSize: 13,
+    },
+
+    empty: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent:
+        "center",
+      padding: 20,
+    },
+
+    emptyTitle: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: "#30272A",
+      marginBottom: 15,
+    },
+
+    primaryButton: {
+      backgroundColor:
+        "#7E243A",
+      borderRadius: 14,
+      paddingHorizontal: 25,
+      paddingVertical: 13,
+    },
+
+    primaryButtonText: {
+      color: "#FFFFFF",
+      fontWeight: "800",
+    },
+
+    hero: {
+      backgroundColor:
+        "#7E243A",
+      paddingTop: 18,
+      paddingBottom: 28,
+      alignItems: "center",
+      borderBottomLeftRadius: 30,
+      borderBottomRightRadius: 30,
+    },
+
+    heroBack: {
+      position: "absolute",
+      left: 15,
+      top: 15,
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor:
+        "rgba(255,255,255,0.15)",
+      alignItems: "center",
+      justifyContent:
+        "center",
+    },
+
+    heroBackText: {
+      color: "#FFFFFF",
+      fontSize: 28,
+    },
+
+    heroAvatar: {
+      width: 76,
+      height: 76,
+      borderRadius: 25,
+      backgroundColor:
+        "#F4DDE3",
+      alignItems: "center",
+      justifyContent:
+        "center",
+    },
+
+    heroAvatarText: {
+      color: "#7E243A",
+      fontSize: 31,
+      fontWeight: "900",
+    },
+
+    heroName: {
+      marginTop: 12,
+      color: "#FFFFFF",
+      fontSize: 25,
+      fontWeight: "900",
+    },
+
+    heroSpecialization: {
+      marginTop: 3,
+      color:
+        "rgba(255,255,255,0.75)",
+      fontSize: 12,
+    },
+
+    heroStatus: {
+      marginTop: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 20,
+    },
+
+    heroActive: {
+      backgroundColor:
+        "rgba(255,255,255,0.18)",
+    },
+
+    heroInactive: {
+      backgroundColor:
+        "rgba(0,0,0,0.15)",
+    },
+
+    heroStatusText: {
+      color: "#FFFFFF",
+      fontSize: 9,
+      fontWeight: "900",
+      letterSpacing: 1,
+    },
+
+    actionRow: {
+      flexDirection: "row",
+      padding: 15,
+      gap: 10,
+    },
+
+    editButton: {
+      flex: 1,
+      height: 46,
+      borderRadius: 13,
+      backgroundColor:
+        "#FFFFFF",
+      borderWidth: 1,
+      borderColor:
+        "#7E243A",
+      alignItems: "center",
+      justifyContent:
+        "center",
+    },
+
+    editText: {
+      color: "#7E243A",
+      fontWeight: "800",
+    },
+
+    deleteButton: {
+      width: 100,
+      height: 46,
+      borderRadius: 13,
+      backgroundColor:
+        "#FCEAEC",
+      alignItems: "center",
+      justifyContent:
+        "center",
+    },
+
+    deleteText: {
+      color: "#A3314C",
+      fontWeight: "800",
+    },
+
+    grid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent:
+        "space-between",
+      paddingHorizontal: 15,
+    },
+
+    statCard: {
+      width: "48%",
+      backgroundColor:
+        "#FFFFFF",
+      borderRadius: 17,
+      padding: 16,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor:
+        "#E9DEDA",
+    },
+
+    statValue: {
+      fontSize: 21,
+      fontWeight: "900",
+      color: "#7E243A",
+    },
+
+    statLabel: {
+      marginTop: 5,
+      fontSize: 11,
+      color: "#918389",
+    },
+
+    section: {
+      marginHorizontal: 15,
+      marginTop: 5,
+      marginBottom: 10,
+      backgroundColor:
+        "#FFFFFF",
+      borderRadius: 20,
+      padding: 17,
+      borderWidth: 1,
+      borderColor:
+        "#E9DEDA",
+    },
+
+    sectionTitle: {
+      fontSize: 17,
+      fontWeight: "900",
+      color: "#30272A",
+      marginBottom: 12,
+    },
+
+    infoRow: {
+      minHeight: 42,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "space-between",
+      borderBottomWidth: 1,
+      borderBottomColor:
+        "#F2ECE9",
+    },
+
+    infoLabel: {
+      flex: 1,
+      fontSize: 12,
+      color: "#8C7E84",
+    },
+
+    infoValue: {
+      maxWidth: "55%",
+      fontSize: 13,
+      fontWeight: "800",
+      color: "#30272A",
+      textAlign: "right",
+    },
+
+    summaryGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent:
+        "space-between",
+      marginBottom: 10,
+    },
+
+    summaryBox: {
+      width: "48%",
+      backgroundColor:
+        "#F9F5F3",
+      borderRadius: 14,
+      padding: 13,
+      marginBottom: 9,
+    },
+
+    summaryValue: {
+      fontSize: 21,
+      fontWeight: "900",
+      color: "#7E243A",
+    },
+
+    summaryLabel: {
+      marginTop: 3,
+      fontSize: 10,
+      color: "#8E8186",
+    },
+
+    totalBox: {
+      marginTop: 15,
+      backgroundColor:
+        "#7E243A",
+      borderRadius: 16,
+      padding: 17,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "space-between",
+    },
+
+    totalLabel: {
+      color:
+        "rgba(255,255,255,0.75)",
+      fontSize: 9,
+      fontWeight: "800",
+      letterSpacing: 1,
+    },
+
+    totalValue: {
+      color: "#FFFFFF",
+      fontSize: 20,
+      fontWeight: "900",
+    },
+
+    noAttendance: {
+      color: "#978A8F",
+      fontSize: 12,
+      textAlign: "center",
+      paddingVertical: 10,
+    },
+
+    attendanceRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 11,
+      borderBottomWidth: 1,
+      borderBottomColor:
+        "#F1EBE8",
+    },
+
+    attendanceDate: {
+      width: 72,
+    },
+
+    attendanceDateText: {
+      fontSize: 11,
+      fontWeight: "800",
+      color: "#30272A",
+    },
+
+    attendanceDetails: {
+      flex: 1,
+      marginLeft: 8,
+    },
+
+    attendanceTimes: {
+      flexDirection: "row",
+      gap: 10,
+    },
+
+    attendanceTime: {
+      fontSize: 10,
+      color: "#74666C",
+    },
+
+    attendanceHours: {
+      marginTop: 4,
+      fontSize: 10,
+      color: "#7E243A",
+      fontWeight: "700",
+    },
+
+    attendanceBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      borderRadius: 9,
+    },
+
+    badgePresent: {
+      backgroundColor:
+        "#E7F5EC",
+    },
+
+    badgeAbsent: {
+      backgroundColor:
+        "#FCEAEC",
+    },
+
+    badgeHalf: {
+      backgroundColor:
+        "#FFF3DB",
+    },
+
+    badgeLeave: {
+      backgroundColor:
+        "#ECE9F9",
+    },
+
+    attendanceBadgeText: {
+      fontSize: 8,
+      fontWeight: "900",
+      color: "#5E5157",
+    },
+
+    bookingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor:
+        "#F1EBE8",
+    },
+
+    bookingIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor:
+        "#F1E0E4",
+      alignItems: "center",
+      justifyContent:
+        "center",
+    },
+
+    bookingIconText: {
+      color: "#7E243A",
+      fontWeight: "900",
+    },
+
+    bookingInfo: {
+      flex: 1,
+      marginLeft: 10,
+    },
+
+    bookingService: {
+      fontSize: 13,
+      fontWeight: "800",
+      color: "#30272A",
+    },
+
+    bookingClient: {
+      marginTop: 2,
+      fontSize: 10,
+      color: "#84777D",
+    },
+
+    bookingDate: {
+      marginTop: 2,
+      fontSize: 9,
+      color: "#A09599",
+    },
+
+    bookingPrice: {
+      fontSize: 13,
+      fontWeight: "900",
+      color: "#7E243A",
+    },
+  });
