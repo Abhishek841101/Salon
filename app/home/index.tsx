@@ -12,6 +12,8 @@ import {
   Image,
   Pressable,
   RefreshControl,
+  ScrollView,
+  Modal,
   StyleSheet,
   Text,
   View,
@@ -399,6 +401,87 @@ export default function HomeScreen() {
   }, []);
 
   // =======================================================
+  // LIVE TOTAL REVENUE
+  // Always comes from backend /api/bills/revenue.
+  // This is NOT calculated from the Redux bills array.
+  // =======================================================
+  const token = useSelector(
+    (state: RootState) => state.auth?.token
+  );
+
+  type DashboardRevenuePeriod =
+    | "today"
+    | "week"
+    | "month"
+    | "quarter"
+    | "year"
+    | "overall";
+
+  const [totalRevenue, setTotalRevenue] =
+    React.useState(0);
+  const [totalRevenueBills, setTotalRevenueBills] =
+    React.useState(0);
+  const [revenuePeriod, setRevenuePeriod] =
+    React.useState<DashboardRevenuePeriod>("month");
+  const [revenueLoading, setRevenueLoading] =
+    React.useState(false);
+
+  const loadRevenue = useCallback(async (period: DashboardRevenuePeriod = revenuePeriod) => {
+    if (!token) return;
+
+    try {
+      setRevenueLoading(true);
+
+      const response = await apiRequest(
+        `/bills/revenue?period=${encodeURIComponent(period)}`,
+        {
+          method: "GET",
+          token,
+        }
+      );
+
+      if (response?.success) {
+        setTotalRevenue(
+          Number(response.totalRevenue || 0)
+        );
+
+        setTotalRevenueBills(
+          Number(response.totalBills || 0)
+        );
+      }
+    } catch (error) {
+      console.error(
+        "REVENUE FETCH ERROR:",
+        error
+      );
+    } finally {
+      setRevenueLoading(false);
+    }
+  }, [token, revenuePeriod]);
+
+  // Fetch immediately when Home opens and whenever
+  // the screen becomes active again.
+  useFocusEffect(
+    useCallback(() => {
+      loadRevenue();
+      return undefined;
+    }, [loadRevenue])
+  );
+
+  // Keep revenue fresh while Home remains open.
+  // A new bill will normally appear within 15 seconds.
+  useEffect(() => {
+    if (!token) return;
+
+    const interval = setInterval(() => {
+      loadRevenue();
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [token, loadRevenue]);
+
+
+  // =======================================================
   // REFRESH
   // =======================================================
 
@@ -505,70 +588,6 @@ export default function HomeScreen() {
   // Hero stats
   const totalClients =
     clientsTotal || clients.length;
-
-  // =======================================================
-  // LIVE TOTAL REVENUE
-  // Always comes from backend /api/bills/revenue.
-  // This is NOT calculated from the Redux bills array.
-  // =======================================================
-  const token = useSelector(
-    (state: RootState) => state.auth?.token
-  );
-
-  const [totalRevenue, setTotalRevenue] =
-    React.useState(0);
-  const [revenueLoading, setRevenueLoading] =
-    React.useState(false);
-
-  const loadRevenue = useCallback(async () => {
-    if (!token) return;
-
-    try {
-      setRevenueLoading(true);
-
-      const response = await apiRequest(
-        "/bills/revenue",
-        {
-          method: "GET",
-          token,
-        }
-      );
-
-      if (response?.success) {
-        setTotalRevenue(
-          Number(response.totalRevenue || 0)
-        );
-      }
-    } catch (error) {
-      console.error(
-        "REVENUE FETCH ERROR:",
-        error
-      );
-    } finally {
-      setRevenueLoading(false);
-    }
-  }, [token]);
-
-  // Fetch immediately when Home opens and whenever
-  // the screen becomes active again.
-  useFocusEffect(
-    useCallback(() => {
-      loadRevenue();
-      return undefined;
-    }, [loadRevenue])
-  );
-
-  // Keep revenue fresh while Home remains open.
-  // A new bill will normally appear within 15 seconds.
-  useEffect(() => {
-    if (!token) return;
-
-    const interval = setInterval(() => {
-      loadRevenue();
-    }, 15000);
-
-    return () => clearInterval(interval);
-  }, [token, loadRevenue]);
 
   // =======================================================
   // RECENT ACTIVITIES
@@ -933,6 +952,23 @@ export default function HomeScreen() {
 </View>
 
               {/* =================================================
+                  REVENUE OVERVIEW
+              ================================================= */}
+
+              <RevenueOverviewCard
+                bills={bills}
+                revenue={totalRevenue}
+                totalBills={totalRevenueBills}
+                loading={revenueLoading}
+                period={revenuePeriod}
+                onPeriodChange={(selectedPeriod) => {
+                  setRevenuePeriod(selectedPeriod);
+                  loadRevenue(selectedPeriod);
+                }}
+                onPress={() => router.push("/billing")}
+              />
+
+              {/* =================================================
                   OVERVIEW
               ================================================= */}
 
@@ -965,20 +1001,6 @@ export default function HomeScreen() {
                   styles.overviewGrid
                 }
               >
-                <OverviewCard
-                  icon="₹"
-                  title="Total Revenue"
-                  value={formatCurrency(
-                    totalRevenue
-                  )}
-                  subtitle="All bills"
-                  onPress={() =>
-                    router.push(
-                      "/billing"
-                    )
-                  }
-                />
-
                 <OverviewCard
                   icon="♙"
                   title="Clients"
@@ -1417,6 +1439,589 @@ function parseRelativeTime(
   }
 
   return amount * 1440;
+}
+
+
+// =========================================================
+// REVENUE OVERVIEW
+// =========================================================
+
+type RevenuePeriod =
+  | "today"
+  | "week"
+  | "month"
+  | "quarter"
+  | "year"
+  | "overall";
+
+function RevenueOverviewCard({
+  bills,
+  revenue,
+  totalBills,
+  loading,
+  period,
+  onPeriodChange,
+  onPress,
+}: {
+  bills: Bill[];
+  revenue: number;
+  totalBills: number;
+  loading: boolean;
+  period: RevenuePeriod;
+  onPeriodChange: (period: RevenuePeriod) => void;
+  onPress: () => void;
+}) {
+  type RevenuePeriod =
+    | "today"
+    | "week"
+    | "month"
+    | "quarter"
+    | "year"
+    | "overall";
+
+  const [menuVisible, setMenuVisible] =
+    React.useState(false);
+
+  const periodLabels: Record<RevenuePeriod, string> = {
+    today: "Today",
+    week: "Last 7 Days",
+    month: "This Month",
+    quarter: "Last 3 Months",
+    year: "This Year",
+    overall: "Overall",
+  };
+
+  const getBillDate = (bill: Bill) =>
+    normalizeDate(
+      bill.billDate ||
+        bill.createdAt ||
+        bill.date
+    );
+
+  const isRevenueBill = (bill: Bill) => {
+    const status = getBillPaymentStatus(bill);
+
+    if (status.includes("cancel")) {
+      return false;
+    }
+
+    // Current backend may not always send paymentStatus.
+    // In that case, keep the bill included.
+    if (!status) {
+      return true;
+    }
+
+    return (
+      status.includes("paid") ||
+      status.includes("complete") ||
+      status.includes("success")
+    );
+  };
+
+  const isInPeriod = (
+    bill: Bill,
+    selected: RevenuePeriod
+  ) => {
+    if (selected === "overall") {
+      return true;
+    }
+
+    const date = getBillDate(bill);
+
+    if (!date) {
+      return false;
+    }
+
+    const now = new Date();
+    const start = new Date(now);
+
+    if (selected === "today") {
+      start.setHours(0, 0, 0, 0);
+    } else if (selected === "week") {
+      start.setDate(now.getDate() - 6);
+      start.setHours(0, 0, 0, 0);
+    } else if (selected === "month") {
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+    } else if (selected === "quarter") {
+      start.setMonth(now.getMonth() - 2, 1);
+      start.setHours(0, 0, 0, 0);
+    } else if (selected === "year") {
+      start.setMonth(0, 1);
+      start.setHours(0, 0, 0, 0);
+    }
+
+    return date >= start && date <= now;
+  };
+
+  const filteredBills = useMemo(() => {
+    return bills.filter(
+      (bill) =>
+        isRevenueBill(bill) &&
+        isInPeriod(bill, period)
+    );
+  }, [bills, period]);
+
+  const chartData = useMemo(() => {
+    const now = new Date();
+
+    // Today -> 6 four-hour buckets
+    if (period === "today") {
+      return Array.from({ length: 6 }, (_, index) => {
+        const start = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          index * 4,
+          0,
+          0,
+          0
+        );
+
+        const end = new Date(start);
+        end.setHours(start.getHours() + 4);
+
+        return {
+          label: `${index * 4}h`,
+          value: filteredBills
+            .filter((bill) => {
+              const date = getBillDate(bill);
+              return date && date >= start && date < end;
+            })
+            .reduce(
+              (sum, bill) => sum + getBillTotal(bill),
+              0
+            ),
+        };
+      });
+    }
+
+    // Last 7 days
+    if (period === "week") {
+      return Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(now);
+        date.setDate(now.getDate() - (6 - index));
+        date.setHours(0, 0, 0, 0);
+
+        const nextDate = new Date(date);
+        nextDate.setDate(date.getDate() + 1);
+
+        return {
+          label: date.toLocaleDateString("en-IN", {
+            weekday: "short",
+          }),
+          value: filteredBills
+            .filter((bill) => {
+              const billDate = getBillDate(bill);
+              return (
+                billDate &&
+                billDate >= date &&
+                billDate < nextDate
+              );
+            })
+            .reduce(
+              (sum, bill) => sum + getBillTotal(bill),
+              0
+            ),
+        };
+      });
+    }
+
+    // Current month -> 6 date ranges
+    if (period === "month") {
+      const daysInMonth = new Date(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        0
+      ).getDate();
+
+      const step = Math.ceil(daysInMonth / 6);
+
+      return Array.from({ length: 6 }, (_, index) => {
+        const startDay = index * step + 1;
+        const endDay = Math.min(
+          (index + 1) * step,
+          daysInMonth
+        );
+
+        return {
+          label: `${startDay}-${endDay}`,
+          value: filteredBills
+            .filter((bill) => {
+              const date = getBillDate(bill);
+
+              return (
+                date &&
+                date.getFullYear() === now.getFullYear() &&
+                date.getMonth() === now.getMonth() &&
+                date.getDate() >= startDay &&
+                date.getDate() <= endDay
+              );
+            })
+            .reduce(
+              (sum, bill) => sum + getBillTotal(bill),
+              0
+            ),
+        };
+      });
+    }
+
+    // Last 3 months
+    if (period === "quarter") {
+      return Array.from({ length: 3 }, (_, index) => {
+        const targetDate = new Date(
+          now.getFullYear(),
+          now.getMonth() - (2 - index),
+          1
+        );
+
+        return {
+          label: targetDate.toLocaleDateString("en-IN", {
+            month: "short",
+          }),
+          value: filteredBills
+            .filter((bill) => {
+              const date = getBillDate(bill);
+
+              return (
+                date &&
+                date.getFullYear() ===
+                  targetDate.getFullYear() &&
+                date.getMonth() ===
+                  targetDate.getMonth()
+              );
+            })
+            .reduce(
+              (sum, bill) => sum + getBillTotal(bill),
+              0
+            ),
+        };
+      });
+    }
+
+    // Current year -> 12 months
+    if (period === "year") {
+      return Array.from({ length: 12 }, (_, monthIndex) => {
+        const monthDate = new Date(
+          now.getFullYear(),
+          monthIndex,
+          1
+        );
+
+        return {
+          label: monthDate.toLocaleDateString("en-IN", {
+            month: "short",
+          }),
+          value: filteredBills
+            .filter((bill) => {
+              const date = getBillDate(bill);
+
+              return (
+                date &&
+                date.getFullYear() === now.getFullYear() &&
+                date.getMonth() === monthIndex
+              );
+            })
+            .reduce(
+              (sum, bill) => sum + getBillTotal(bill),
+              0
+            ),
+        };
+      });
+    }
+
+    // Overall -> last 6 months for visual trend.
+    // The headline value still comes from the backend total.
+    return Array.from({ length: 6 }, (_, index) => {
+      const monthDate = new Date(
+        now.getFullYear(),
+        now.getMonth() - (5 - index),
+        1
+      );
+
+      const nextMonth = new Date(
+        monthDate.getFullYear(),
+        monthDate.getMonth() + 1,
+        1
+      );
+
+      return {
+        label: monthDate.toLocaleDateString("en-IN", {
+          month: "short",
+        }),
+        value: bills
+          .filter((bill) => {
+            const date = getBillDate(bill);
+
+            return (
+              isRevenueBill(bill) &&
+              date &&
+              date >= monthDate &&
+              date < nextMonth
+            );
+          })
+          .reduce(
+            (sum, bill) => sum + getBillTotal(bill),
+            0
+          ),
+      };
+    });
+  }, [filteredBills, bills, period]);
+
+  const maxValue = Math.max(
+    ...chartData.map((item) => item.value),
+    1
+  );
+
+  return (
+    <View style={styles.revenueCard}>
+      <View style={styles.revenueCardHeader}>
+        <View style={styles.revenueHeaderLeft}>
+          <View style={styles.revenueTitleIcon}>
+            <Text style={styles.revenueTitleIconText}>
+              ₹
+            </Text>
+          </View>
+
+          <View style={styles.revenueHeaderText}>
+            <Text style={styles.revenueCardTitle}>
+              Revenue Overview
+            </Text>
+
+            <Text style={styles.revenueCardSubtitle}>
+              Track your salon earnings
+            </Text>
+          </View>
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.revenueFilterButton,
+            pressed && styles.pressed,
+          ]}
+          onPress={() => setMenuVisible(true)}
+        >
+          <Text style={styles.revenueCalendarIcon}>
+            ▣
+          </Text>
+
+          <Text
+            numberOfLines={1}
+            style={styles.revenueFilterText}
+          >
+            {periodLabels[period]}
+          </Text>
+
+          <Text style={styles.revenueChevron}>
+            ▾
+          </Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.revenueAmountRow}>
+        <View>
+          <Text style={styles.revenueAmount}>
+            {loading
+              ? "..."
+              : formatCurrency(revenue)}
+          </Text>
+
+          <Text style={styles.revenueAmountLabel}>
+            Total Revenue • {loading ? "..." : totalBills} Bills
+          </Text>
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.revenueDetailsButton,
+            pressed && styles.pressed,
+          ]}
+          onPress={onPress}
+        >
+          <Text style={styles.revenueDetailsText}>
+            View bills
+          </Text>
+
+          <Text style={styles.revenueArrow}>
+            →
+          </Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.revenueChartHeader}>
+        <Text style={styles.revenueChartTitle}>
+          Revenue trend
+        </Text>
+
+        <Text style={styles.revenueChartPeriod}>
+          {periodLabels[period]}
+        </Text>
+      </View>
+
+      <View style={styles.revenueChart}>
+        {chartData.map((item, index) => {
+          const height =
+            item.value > 0
+              ? Math.max(
+                  10,
+                  (item.value / maxValue) * 105
+                )
+              : 5;
+
+          return (
+            <View
+              key={`${item.label}-${index}`}
+              style={styles.chartColumn}
+            >
+              <View style={styles.chartValueWrap}>
+                {item.value > 0 ? (
+                  <Text style={styles.chartValue}>
+                    {item.value >= 100000
+                      ? `₹${(
+                          item.value / 100000
+                        ).toFixed(1)}L`
+                      : item.value >= 1000
+                        ? `₹${(
+                            item.value / 1000
+                          ).toFixed(1)}K`
+                        : `₹${Math.round(
+                            item.value
+                          )}`}
+                  </Text>
+                ) : null}
+              </View>
+
+              <View style={styles.chartTrack}>
+                <View
+                  style={[
+                    styles.chartBar,
+                    { height },
+                  ]}
+                />
+              </View>
+
+              <Text style={styles.chartLabel}>
+                {item.label}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+
+      <Pressable
+        style={({ pressed }) => [
+          styles.revenueBottomLink,
+          pressed && styles.pressed,
+        ]}
+        onPress={onPress}
+      >
+        <Text style={styles.revenueBottomText}>
+          Open billing & revenue details
+        </Text>
+
+        <Text style={styles.revenueBottomArrow}>
+          →
+        </Text>
+      </Pressable>
+
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <Pressable
+          style={styles.revenueModalOverlay}
+          onPress={() => setMenuVisible(false)}
+        >
+          <Pressable
+            style={styles.revenuePeriodMenu}
+            onPress={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <View style={styles.revenueMenuHeader}>
+              <View>
+                <Text style={styles.revenueMenuTitle}>
+                  Revenue Period
+                </Text>
+
+                <Text style={styles.revenueMenuSubtitle}>
+                  Choose the time range
+                </Text>
+              </View>
+
+              <Pressable
+                style={styles.revenueMenuClose}
+                onPress={() =>
+                  setMenuVisible(false)
+                }
+              >
+                <Text style={styles.revenueMenuCloseText}>
+                  ×
+                </Text>
+              </Pressable>
+            </View>
+
+            {(
+              Object.keys(periodLabels) as RevenuePeriod[]
+            ).map((key) => (
+              <Pressable
+                key={key}
+                style={[
+                  styles.revenuePeriodItem,
+                  period === key &&
+                    styles.revenuePeriodItemActive,
+                ]}
+                onPress={() => {
+                  setMenuVisible(false);
+                  onPeriodChange(key);
+                }}
+              >
+                <View style={styles.revenuePeriodLeft}>
+                  <Text
+                    style={[
+                      styles.revenuePeriodIcon,
+                      period === key &&
+                        styles.revenuePeriodIconActive,
+                    ]}
+                  >
+                    {key === "today"
+                      ? "◷"
+                      : key === "week"
+                        ? "7"
+                        : key === "month"
+                          ? "M"
+                          : key === "quarter"
+                            ? "3"
+                            : key === "year"
+                              ? "Y"
+                              : "∞"}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.revenuePeriodText,
+                      period === key &&
+                        styles.revenuePeriodTextActive,
+                    ]}
+                  >
+                    {periodLabels[key]}
+                  </Text>
+                </View>
+
+                {period === key ? (
+                  <Text style={styles.revenueCheck}>
+                    ✓
+                  </Text>
+                ) : null}
+              </Pressable>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
 }
 
 // =========================================================
@@ -2114,44 +2719,6 @@ heroInfoDivider: {
   backgroundColor: "#E6D6DA",
   marginHorizontal: 8,
 },
-heroImageContainer: {
-  width: "46%",
-  height: "100%",
-},
-
-heroImage: {
-  width: "100%",
-  height: "100%",
-},
-
-heroContent: {
-  flex: 1,
-  justifyContent: "center",
-  paddingHorizontal: 20,
-  paddingVertical: 20,
-},
-
-heroSmallText: {
-  fontSize: 11,
-  fontWeight: "700",
-  letterSpacing: 1.5,
-  color: "rgba(255,255,255,0.75)",
-  marginBottom: 7,
-},
-
-heroTitle: {
-  fontSize: 25,
-  fontWeight: "800",
-  color: "#FFFFFF",
-  marginBottom: 7,
-},
-
-heroSubtitle: {
-  fontSize: 13,
-  lineHeight: 19,
-  color: "rgba(255,255,255,0.85)",
-},
-
   // =======================================================
   // SECTION
   // =======================================================
@@ -2181,6 +2748,359 @@ heroSubtitle: {
     color: "#7A263A",
     fontWeight: "800",
     fontSize: 12,
+  },
+
+  // =======================================================
+  // REVENUE OVERVIEW
+  // =======================================================
+
+  revenueCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 22,
+    borderWidth: 1,
+    borderColor: "#F1E6E2",
+    shadowColor: "#4E1D29",
+    shadowOffset: {
+      width: 0,
+      height: 7,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+
+  revenueCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+  },
+
+  revenueHeaderLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingRight: 8,
+  },
+
+  revenueTitleIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: "#F8E9E6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  revenueTitleIconText: {
+    color: "#7A263A",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+
+  revenueHeaderText: {
+    flex: 1,
+    marginLeft: 10,
+  },
+
+  revenueCardTitle: {
+    color: "#4E1D29",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+
+  revenueCardSubtitle: {
+    color: "#9A8580",
+    fontSize: 11,
+    marginTop: 4,
+  },
+
+  revenueFilterButton: {
+    minHeight: 38,
+    maxWidth: 145,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: "#FBF2EF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#F1E2DE",
+  },
+
+  revenueCalendarIcon: {
+    color: "#7A263A",
+    fontSize: 16,
+    fontWeight: "800",
+    marginRight: 5,
+  },
+
+  revenueFilterText: {
+    color: "#7A263A",
+    fontSize: 10,
+    fontWeight: "800",
+    flexShrink: 1,
+  },
+
+  revenueChevron: {
+    color: "#7A263A",
+    fontSize: 12,
+    marginLeft: 5,
+  },
+
+  revenueAmountRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+
+  revenueAmount: {
+    color: "#4E1D29",
+    fontSize: 30,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+  },
+
+  revenueAmountLabel: {
+    color: "#9A8580",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+
+  revenueDetailsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "#F8E9E6",
+  },
+
+  revenueDetailsText: {
+    color: "#7A263A",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  revenueArrow: {
+    color: "#7A263A",
+    fontSize: 14,
+    fontWeight: "900",
+    marginLeft: 4,
+  },
+
+  revenueChartHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+
+  revenueChartTitle: {
+    color: "#5E4943",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+
+  revenueChartPeriod: {
+    color: "#AA9790",
+    fontSize: 9,
+    fontWeight: "700",
+  },
+
+  revenueChart: {
+    height: 160,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    paddingTop: 8,
+  },
+
+  chartColumn: {
+    flex: 1,
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    marginHorizontal: 2,
+  },
+
+  chartValueWrap: {
+    height: 20,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    width: "100%",
+  },
+
+  chartValue: {
+    color: "#8A7069",
+    fontSize: 7,
+    fontWeight: "800",
+  },
+
+  chartTrack: {
+    width: "68%",
+    height: 110,
+    borderRadius: 8,
+    justifyContent: "flex-end",
+    backgroundColor: "#FBF3F0",
+    overflow: "hidden",
+  },
+
+  chartBar: {
+    width: "100%",
+    borderRadius: 8,
+    backgroundColor: "#7A263A",
+  },
+
+  chartLabel: {
+    color: "#A08D87",
+    fontSize: 8,
+    fontWeight: "700",
+    marginTop: 7,
+  },
+
+  revenueBottomLink: {
+    marginTop: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#F1E6E2",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  revenueBottomText: {
+    color: "#7A263A",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  revenueBottomArrow: {
+    color: "#7A263A",
+    fontSize: 13,
+    fontWeight: "900",
+    marginLeft: 5,
+  },
+
+  revenueModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(36, 17, 23, 0.28)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+
+  revenuePeriodMenu: {
+    width: "88%",
+    maxWidth: 360,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#F0E2DE",
+    shadowColor: "#000000",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+
+  revenueMenuHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+    paddingBottom: 8,
+  },
+
+  revenueMenuTitle: {
+    color: "#4E1D29",
+    fontSize: 14,
+    fontWeight: "900",
+    paddingHorizontal: 6,
+    paddingTop: 4,
+  },
+
+  revenueMenuSubtitle: {
+    color: "#9A8580",
+    fontSize: 10,
+    marginTop: 2,
+    paddingHorizontal: 6,
+  },
+
+  revenueMenuClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: "#F8E9E6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  revenueMenuCloseText: {
+    color: "#7A263A",
+    fontSize: 22,
+    lineHeight: 22,
+    fontWeight: "600",
+  },
+
+  revenuePeriodItem: {
+    minHeight: 46,
+    paddingHorizontal: 10,
+    borderRadius: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  revenuePeriodLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  revenuePeriodIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: "#FBF2EF",
+    color: "#7A263A",
+    fontSize: 10,
+    fontWeight: "900",
+    textAlign: "center",
+    textAlignVertical: "center",
+    marginRight: 10,
+  },
+
+  revenuePeriodIconActive: {
+    backgroundColor: "#F8E1DC",
+  },
+
+  revenuePeriodItemActive: {
+    backgroundColor: "#FBF0ED",
+  },
+
+  revenuePeriodText: {
+    color: "#6F5A54",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  revenuePeriodTextActive: {
+    color: "#7A263A",
+    fontWeight: "900",
+  },
+
+  revenueCheck: {
+    color: "#7A263A",
+    fontSize: 15,
+    fontWeight: "900",
   },
 
   // =======================================================

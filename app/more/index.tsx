@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function MoreScreen() {
   return (
@@ -96,6 +97,34 @@ export default function MoreScreen() {
               onPress={() => router.push("/services")}
             />
           </View>
+          <Pressable
+  style={styles.productsCard}
+  onPress={() => router.push("/products")}
+>
+  <View style={styles.productsIcon}>
+    <Ionicons
+      name="cube-outline"
+      size={26}
+      color="#4F46E5"
+    />
+  </View>
+
+  <View style={{ flex: 1 }}>
+    <Text style={styles.productsTitle}>
+      Products
+    </Text>
+
+    <Text style={styles.productsSubtitle}>
+      Manage salon inventory & stock
+    </Text>
+  </View>
+
+  <Ionicons
+    name="chevron-forward"
+    size={22}
+    color="#94A3B8"
+  />
+</Pressable>
 
           {/* =====================================================
               MANAGEMENT
@@ -156,22 +185,24 @@ export default function MoreScreen() {
               subtitle="View bills and invoices"
               onPress={() => router.push("/billing")}
             />
+<Divider />
 
-            <Divider />
+<MenuItem
+  icon="₹"
+  title="Expenses"
+  subtitle="Track salon expenses & spending"
+  onPress={() => router.push("/expenses")}
+/>
+           <Divider />
 
-            <MenuItem
-              icon="▤"
-              title="Reports"
-              subtitle="Sales and salon performance"
-              onPress={() =>
-                Alert.alert(
-                  "Reports",
-                  "Reports dashboard will be added here."
-                )
-              }
-            />
+<MenuItem
+  icon="▤"
+  title="Reports"
+  subtitle="Sales and salon performance"
+  onPress={() => router.push("/reports")}
+/>
 
-            <Divider />
+<Divider />
 
             <MenuItem
               icon="⌁"
@@ -945,4 +976,36 @@ const styles = StyleSheet.create({
     color: "#8A243B",
     fontWeight: "800",
   },
+  productsCard: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "#FFFFFF",
+  borderRadius: 18,
+  padding: 16,
+  marginTop: 12,
+  borderWidth: 1,
+  borderColor: "#E2E8F0",
+},
+
+productsIcon: {
+  width: 52,
+  height: 52,
+  borderRadius: 15,
+  backgroundColor: "#EEF2FF",
+  alignItems: "center",
+  justifyContent: "center",
+  marginRight: 13,
+},
+
+productsTitle: {
+  fontSize: 16,
+  fontWeight: "800",
+  color: "#0F172A",
+},
+
+productsSubtitle: {
+  fontSize: 12,
+  color: "#64748B",
+  marginTop: 4,
+},
 });
