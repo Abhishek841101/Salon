@@ -358,6 +358,12 @@ export default function ClientDetailsScreen() {
               label="Date of Birth"
               value={formatDate(client.dateOfBirth)}
             />
+            <InfoRow
+  icon="heart-outline"
+  label="Anniversary Date"
+  value={formatDate(client.anniversaryDate)}
+/>
+
 
             <InfoRow
               icon="location-outline"

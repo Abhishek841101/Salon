@@ -9,6 +9,8 @@ import stylistsReducer from "../features/stylist/stylistSlice";
 import attendanceReducer from "../features/attendance/attendanceSlice";
 import productReducer from "../features/product/productSlice";
 import expenseReducer from "../features/expense/expenseSlice";
+import notificationReducer from "../features/notification/notificationSlice";
+import salaryReducer from "../features/salary/salarySlice";
 export const store = configureStore({
   reducer: {
     auth: authReducer,
@@ -20,6 +22,8 @@ export const store = configureStore({
     attendance: attendanceReducer,
     products: productReducer,
     expense: expenseReducer,
+    notifications: notificationReducer,
+    salary: salaryReducer,
   },
 });
 

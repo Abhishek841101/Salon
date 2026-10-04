@@ -903,7 +903,19 @@ export default function ServicesScreen() {
       },
     });
   };
+const handleEditService = (service: Service) => {
+  if (!service?._id) {
+    Alert.alert("Error", "Service ID is missing");
+    return;
+  }
 
+  router.push({
+    pathname: "/services/edit-service",
+    params: {
+      id: service._id,
+    },
+  });
+};
   const renderService = ({
     item,
   }: {
@@ -962,14 +974,21 @@ export default function ServicesScreen() {
         </View>
 
         <View style={styles.priceContainer}>
-          <Text style={styles.price}>
-            {formatPrice(item.price)}
-          </Text>
-
-          <Text style={styles.arrow}>
-            ›
-          </Text>
-        </View>
+  <Text style={styles.price}>
+    {formatPrice(item.price)}
+  </Text>
+  <Pressable
+    style={styles.editButton}
+    onPress={(event) => {
+      event.stopPropagation();
+      handleEditService(item);
+    }}
+  >
+    <Text style={styles.editButtonText}>
+      Edit
+    </Text>
+  </Pressable>
+</View>
       </Pressable>
     );
   };
@@ -1671,4 +1690,18 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 3,
   },
+  editButton: {
+  marginTop: 7,
+  paddingHorizontal: 10,
+  height: 27,
+  borderRadius: 9,
+  backgroundColor: "#F2E3E0",
+  alignItems: "center",
+  justifyContent: "center",
+},
+editButtonText: {
+  color: "#76253A",
+  fontSize: 8,
+  fontWeight: "800",
+},
 });

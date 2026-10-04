@@ -2,7 +2,6 @@ import React, {
   useEffect,
   useState,
 } from "react";
-
 import {
   ActivityIndicator,
   Alert,
@@ -16,49 +15,38 @@ import {
   TextInput,
   View,
 } from "react-native";
-
 import * as ImagePicker from "expo-image-picker";
-
 import {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
-
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-
 import {
   useDispatch,
   useSelector,
 } from "react-redux";
-
 import {
   createClient,
   clearClientError,
 } from "../../src/features/clients/clientsSlice";
-
 /* ============================================================
    SCREEN
-============================================================ */
-
+\\============================================================ */
 export default function AddClientScreen() {
   const dispatch =
     useDispatch<any>();
-
   /* ==========================================================
      AUTH
   ========================================================== */
-
   const token =
     useSelector(
       (state: any) =>
         state.auth?.token
     );
-
   /* ==========================================================
      CLIENT STATE
   ========================================================== */
-
   const createLoading =
     useSelector(
       (state: any) =>
@@ -66,48 +54,39 @@ export default function AddClientScreen() {
           ?.createLoading ||
         false
     );
-
   const reduxError =
     useSelector(
       (state: any) =>
         state.clients?.error ||
         null
     );
-
   /* ==========================================================
      FORM
   ========================================================== */
-
   const [
     name,
     setName,
   ] = useState("");
-
   const [
     phone,
     setPhone,
   ] = useState("");
-
   const [
     email,
     setEmail,
   ] = useState("");
-
   const [
     gender,
     setGender,
   ] = useState("");
-
   const [
     address,
     setAddress,
   ] = useState("");
-
   const [
     notes,
     setNotes,
   ] = useState("");
-
   const [
     dateOfBirth,
     setDateOfBirth,
@@ -115,46 +94,44 @@ export default function AddClientScreen() {
     useState<Date | null>(
       null
     );
-
+  const [
+    anniversaryDate,
+    setAnniversaryDate,
+  ] =
+    useState<Date | null>(
+      null
+    );
   /* ==========================================================
      IMAGE
   ========================================================== */
-
   const [
     profileImage,
     setProfileImage,
   ] =
     useState<any>(null);
-
   /* ==========================================================
      LOCAL ERROR
   ========================================================== */
-
   const [
     localError,
     setLocalError,
   ] = useState("");
-
   /* ==========================================================
      CLEAR ERROR
   ========================================================== */
-
   useEffect(() => {
     dispatch(
       clearClientError()
     );
   }, [dispatch]);
-
   /* ==========================================================
      IMAGE PICKER
   ========================================================== */
-
   const pickImage =
     async () => {
       try {
         const permission =
           await ImagePicker.requestMediaLibraryPermissionsAsync();
-
         if (
           !permission.granted
         ) {
@@ -162,73 +139,57 @@ export default function AddClientScreen() {
             "Permission Required",
             "Please allow photo library permission."
           );
-
           return;
         }
-
         const result =
           await ImagePicker.launchImageLibraryAsync(
             {
               mediaTypes: [
                 "images",
               ],
-
               allowsEditing:
                 true,
-
               aspect: [
                 1,
                 1,
               ],
-
               quality:
                 0.85,
             }
           );
-
         if (
           result.canceled
         ) {
           return;
         }
-
         const asset =
           result.assets?.[0];
-
         if (!asset?.uri) {
           Alert.alert(
             "Error",
             "Unable to get selected image."
           );
-
           return;
         }
-
         const image = {
           uri: asset.uri,
-
           name:
             asset.fileName ||
             `client-${Date.now()}.jpg`,
-
           type:
             asset.mimeType ||
             "image/jpeg",
         };
-
         console.log(
           "========================================"
         );
-
         console.log(
           "SELECTED CLIENT IMAGE:",
           image
         );
-
         console.log(
           "========================================"
         );
-
         setProfileImage(
           image
         );
@@ -237,48 +198,38 @@ export default function AddClientScreen() {
           "IMAGE PICKER ERROR:",
           error
         );
-
         Alert.alert(
           "Error",
           "Unable to select image."
         );
       }
     };
-
   /* ==========================================================
      REMOVE IMAGE
   ========================================================== */
-
   const removeImage =
     () => {
       setProfileImage(
         null
       );
     };
-
   /* ==========================================================
      DATE PICKER
-     
      Android imperative API avoids deprecated onChange.
   ========================================================== */
-
   const openDatePicker =
     () => {
       const currentDate =
         dateOfBirth ||
         new Date();
-
       DateTimePickerAndroid.open(
         {
           value:
             currentDate,
-
           mode:
             "date",
-
           maximumDate:
             new Date(),
-
           onValueChange:
             (
               _event,
@@ -292,10 +243,8 @@ export default function AddClientScreen() {
                 );
               }
             },
-
           onDismiss:
             () => {},
-
           onNeutralButtonPress:
             () => {
               setDateOfBirth(
@@ -305,11 +254,49 @@ export default function AddClientScreen() {
         }
       );
     };
-
+  /* ==========================================================
+     ANNIVERSARY DATE PICKER
+  ========================================================== */
+  const openAnniversaryPicker =
+    () => {
+      const currentDate =
+        anniversaryDate ||
+        new Date();
+      DateTimePickerAndroid.open(
+        {
+          value:
+            currentDate,
+          mode:
+            "date",
+          maximumDate:
+            new Date(),
+          onValueChange:
+            (
+              _event,
+              selectedDate
+            ) => {
+              if (
+                selectedDate
+              ) {
+                setAnniversaryDate(
+                  selectedDate
+                );
+              }
+            },
+          onDismiss:
+            () => {},
+          onNeutralButtonPress:
+            () => {
+              setAnniversaryDate(
+                null
+              );
+            },
+        }
+      );
+    };
   /* ==========================================================
      VALIDATION
   ========================================================== */
-
   const validateForm =
     () => {
       if (
@@ -319,10 +306,8 @@ export default function AddClientScreen() {
           "Required",
           "Please enter client name."
         );
-
         return false;
       }
-
       if (
         !phone.trim()
       ) {
@@ -330,16 +315,13 @@ export default function AddClientScreen() {
           "Required",
           "Please enter client phone number."
         );
-
         return false;
       }
-
       const cleanPhone =
         phone.replace(
           /\D/g,
           ""
         );
-
       if (
         cleanPhone.length <
         10
@@ -348,127 +330,106 @@ export default function AddClientScreen() {
           "Invalid Phone",
           "Please enter a valid 10 digit phone number."
         );
-
         return false;
       }
-
       return true;
     };
-
   /* ==========================================================
      SUBMIT
   ========================================================== */
-
   const handleSubmit =
     async () => {
       setLocalError("");
-
       if (!token) {
         Alert.alert(
           "Session Expired",
           "Please login again."
         );
-
         router.replace(
           "/auth/login"
         );
-
         return;
       }
-
       if (
         !validateForm()
       ) {
         return;
       }
-
       try {
         dispatch(
           clearClientError()
         );
-
         console.log(
           "========================================"
         );
-
         console.log(
           "CREATING CLIENT..."
         );
-
         console.log(
           "NAME:",
           name.trim()
         );
-
         console.log(
           "PHONE:",
           phone.trim()
         );
-
         console.log(
           "EMAIL:",
           email.trim()
         );
-
         console.log(
           "GENDER:",
           gender
         );
-
         console.log(
           "DOB:",
           dateOfBirth
         );
-
+        console.log(
+          "ANNIVERSARY:",
+          anniversaryDate
+        );
         console.log(
           "IMAGE:",
           profileImage?.uri
             ? "YES"
             : "NO"
         );
-
         console.log(
           "TOKEN:",
           !!token
         );
-
         console.log(
           "========================================"
         );
-
         const result =
           await dispatch(
             createClient(
               {
                 token,
-
                 name:
                   name.trim(),
-
                 phone:
                   phone.trim(),
-
                 email:
                   email.trim(),
-
                 gender,
-
                 dateOfBirth:
                   dateOfBirth
                     ? dateOfBirth.toISOString()
                     : null,
-
+                anniversaryDate:
+                  anniversaryDate
+                    ? anniversaryDate.toISOString()
+                    : null,
                 address:
                   address.trim(),
-
                 notes:
                   notes.trim(),
-
                 profileImage,
               }
             )
           );
-
         if (
           createClient.fulfilled.match(
             result
@@ -480,7 +441,6 @@ export default function AddClientScreen() {
             [
               {
                 text: "OK",
-
                 onPress:
                   () => {
                     router.back();
@@ -488,18 +448,14 @@ export default function AddClientScreen() {
               },
             ]
           );
-
           return;
         }
-
         const message =
           result.payload ||
           "Unable to create client.";
-
         setLocalError(
           String(message)
         );
-
         Alert.alert(
           "Unable to Add Client",
           String(message)
@@ -509,26 +465,21 @@ export default function AddClientScreen() {
           "CREATE CLIENT SCREEN ERROR:",
           error
         );
-
         const message =
           error?.message ||
           "Unable to create client.";
-
         setLocalError(
           message
         );
-
         Alert.alert(
           "Error",
           message
         );
       }
     };
-
   /* ==========================================================
      DATE DISPLAY
   ========================================================== */
-
   const formattedDate =
     dateOfBirth
       ? dateOfBirth.toLocaleDateString(
@@ -540,19 +491,26 @@ export default function AddClientScreen() {
           }
         )
       : "Select date of birth";
-
+  const formattedAnniversaryDate =
+    anniversaryDate
+      ? anniversaryDate.toLocaleDateString(
+          "en-IN",
+          {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          }
+        )
+      : "Select anniversary date";
   /* ==========================================================
      ERROR
   ========================================================== */
-
   const displayError =
     localError ||
     reduxError;
-
   /* ==========================================================
      UI
   ========================================================== */
-
   return (
     <View
       style={
@@ -562,7 +520,6 @@ export default function AddClientScreen() {
       <StatusBar
         style="dark"
       />
-
       <KeyboardAvoidingView
         style={
           styles.flex
@@ -577,7 +534,6 @@ export default function AddClientScreen() {
         {/* ==================================================
             HEADER
         ================================================== */}
-
         <View
           style={
             styles.header
@@ -597,7 +553,6 @@ export default function AddClientScreen() {
               color="#3A1821"
             />
           </Pressable>
-
           <View
             style={
               styles.headerCenter
@@ -610,7 +565,6 @@ export default function AddClientScreen() {
             >
               Add Client
             </Text>
-
             <Text
               style={
                 styles.headerSubtitle
@@ -619,18 +573,13 @@ export default function AddClientScreen() {
               Create a new client profile
             </Text>
           </View>
-
           <View
             style={
               styles.headerSpacer
             }
           />
         </View>
-
-        {/* ==================================================
-            FORM
-        ================================================== */}
-
+       
         <ScrollView
           showsVerticalScrollIndicator={
             false
@@ -643,7 +592,6 @@ export default function AddClientScreen() {
           {/* ==================================================
               PROFILE IMAGE
           ================================================== */}
-
           <View
             style={
               styles.imageSection
@@ -677,7 +625,6 @@ export default function AddClientScreen() {
                     size={48}
                     color="#A93650"
                   />
-
                   <Text
                     style={
                       styles.imageText
@@ -687,7 +634,6 @@ export default function AddClientScreen() {
                   </Text>
                 </View>
               )}
-
               <View
                 style={
                   styles.cameraButton
@@ -700,7 +646,6 @@ export default function AddClientScreen() {
                 />
               </View>
             </Pressable>
-
             {profileImage?.uri && (
               <Pressable
                 onPress={
@@ -715,7 +660,6 @@ export default function AddClientScreen() {
                   size={16}
                   color="#C62828"
                 />
-
                 <Text
                   style={
                     styles.removeImageText
@@ -726,11 +670,9 @@ export default function AddClientScreen() {
               </Pressable>
             )}
           </View>
-
           {/* ==================================================
               ERROR
           ================================================== */}
-
           {displayError ? (
             <View
               style={
@@ -742,7 +684,6 @@ export default function AddClientScreen() {
                 size={20}
                 color="#B3261E"
               />
-
               <Text
                 style={
                   styles.errorText
@@ -754,11 +695,9 @@ export default function AddClientScreen() {
               </Text>
             </View>
           ) : null}
-
           {/* ==================================================
               NAME
           ================================================== */}
-
           <View
             style={
               styles.field
@@ -771,7 +710,6 @@ export default function AddClientScreen() {
             >
               Client Name *
             </Text>
-
             <TextInput
               value={name}
               onChangeText={
@@ -785,11 +723,9 @@ export default function AddClientScreen() {
               autoCapitalize="words"
             />
           </View>
-
           {/* ==================================================
               PHONE
           ================================================== */}
-
           <View
             style={
               styles.field
@@ -802,7 +738,6 @@ export default function AddClientScreen() {
             >
               Phone Number *
             </Text>
-
             <TextInput
               value={phone}
               onChangeText={
@@ -817,11 +752,9 @@ export default function AddClientScreen() {
               maxLength={10}
             />
           </View>
-
           {/* ==================================================
               EMAIL
           ================================================== */}
-
           <View
             style={
               styles.field
@@ -834,7 +767,6 @@ export default function AddClientScreen() {
             >
               Email
             </Text>
-
             <TextInput
               value={email}
               onChangeText={
@@ -849,11 +781,9 @@ export default function AddClientScreen() {
               autoCapitalize="none"
             />
           </View>
-
           {/* ==================================================
               GENDER
           ================================================== */}
-
           <View
             style={
               styles.field
@@ -866,7 +796,6 @@ export default function AddClientScreen() {
             >
               Gender
             </Text>
-
             <View
               style={
                 styles.genderRow
@@ -911,11 +840,9 @@ export default function AddClientScreen() {
               )}
             </View>
           </View>
-
           {/* ==================================================
               DOB
           ================================================== */}
-
           <View
             style={
               styles.field
@@ -928,7 +855,6 @@ export default function AddClientScreen() {
             >
               Date of Birth
             </Text>
-
             <Pressable
               onPress={
                 openDatePicker
@@ -953,7 +879,6 @@ export default function AddClientScreen() {
                     formattedDate
                   }
                 </Text>
-
                 <Ionicons
                   name="calendar-outline"
                   size={20}
@@ -962,11 +887,54 @@ export default function AddClientScreen() {
               </View>
             </Pressable>
           </View>
-
+          
+          <View
+            style={
+              styles.field
+            }
+          >
+            <Text
+              style={
+                styles.label
+              }
+            >
+              Anniversary Date (Optional)
+            </Text>
+            <Pressable
+              onPress={
+                openAnniversaryPicker
+              }
+              style={
+                styles.input
+              }
+            >
+              <View
+                style={
+                  styles.dateRow
+                }
+              >
+                <Text
+                  style={[
+                    styles.dateText,
+                    !anniversaryDate &&
+                      styles.placeholderText,
+                  ]}
+                >
+                  {
+                    formattedAnniversaryDate
+                  }
+                </Text>
+                <Ionicons
+                  name="calendar-outline"
+                  size={20}
+                  color="#A93650"
+                />
+              </View>
+            </Pressable>
+          </View>
           {/* ==================================================
               ADDRESS
           ================================================== */}
-
           <View
             style={
               styles.field
@@ -979,7 +947,6 @@ export default function AddClientScreen() {
             >
               Address
             </Text>
-
             <TextInput
               value={address}
               onChangeText={
@@ -996,11 +963,9 @@ export default function AddClientScreen() {
               textAlignVertical="top"
             />
           </View>
-
           {/* ==================================================
               NOTES
           ================================================== */}
-
           <View
             style={
               styles.field
@@ -1013,7 +978,6 @@ export default function AddClientScreen() {
             >
               Notes
             </Text>
-
             <TextInput
               value={notes}
               onChangeText={
@@ -1030,11 +994,9 @@ export default function AddClientScreen() {
               textAlignVertical="top"
             />
           </View>
-
           {/* ==================================================
               SAVE
           ================================================== */}
-
           <Pressable
             onPress={
               handleSubmit
@@ -1060,7 +1022,6 @@ export default function AddClientScreen() {
                   size={22}
                   color="#FFFFFF"
                 />
-
                 <Text
                   style={
                     styles.submitText
@@ -1071,7 +1032,6 @@ export default function AddClientScreen() {
               </>
             )}
           </Pressable>
-
           <View
             style={
               styles.bottomSpace
@@ -1082,11 +1042,9 @@ export default function AddClientScreen() {
     </View>
   );
 }
-
 /* ============================================================
    STYLES
-============================================================ */
-
+\\============================================================ */
 const styles =
   StyleSheet.create({
     container: {
@@ -1094,11 +1052,9 @@ const styles =
       backgroundColor:
         "#FFF8F8",
     },
-
     flex: {
       flex: 1,
     },
-
     header: {
       minHeight: 78,
       flexDirection:
@@ -1117,7 +1073,6 @@ const styles =
       borderBottomColor:
         "#F0E3E6",
     },
-
     backButton: {
       width: 42,
       height: 42,
@@ -1129,40 +1084,33 @@ const styles =
       backgroundColor:
         "#FFF0F3",
     },
-
     headerCenter: {
       flex: 1,
       marginLeft: 12,
     },
-
     headerTitle: {
       fontSize: 21,
       fontWeight:
         "800",
       color: "#3A1821",
     },
-
     headerSubtitle: {
       marginTop: 3,
       fontSize: 12,
       color: "#8B7078",
     },
-
     headerSpacer: {
       width: 42,
     },
-
     scrollContent: {
       padding: 18,
       paddingBottom: 40,
     },
-
     imageSection: {
       alignItems:
         "center",
       marginBottom: 22,
     },
-
     imageWrapper: {
       width: 118,
       height: 118,
@@ -1176,7 +1124,6 @@ const styles =
         "#FBECEF",
       position: "relative",
     },
-
     profileImage: {
       width: 118,
       height: 118,
@@ -1184,7 +1131,6 @@ const styles =
       backgroundColor:
         "#FBECEF",
     },
-
     imagePlaceholder: {
       width: 118,
       height: 118,
@@ -1201,7 +1147,6 @@ const styles =
       borderStyle:
         "dashed",
     },
-
     imageText: {
       marginTop: 3,
       fontSize: 11,
@@ -1209,7 +1154,6 @@ const styles =
         "700",
       color: "#A93650",
     },
-
     cameraButton: {
       position:
         "absolute",
@@ -1228,7 +1172,6 @@ const styles =
       borderColor:
         "#FFFFFF",
     },
-
     removeImageButton: {
       flexDirection:
         "row",
@@ -1237,14 +1180,12 @@ const styles =
       marginTop: 10,
       gap: 5,
     },
-
     removeImageText: {
       fontSize: 13,
       fontWeight:
         "700",
       color: "#C62828",
     },
-
     errorBox: {
       flexDirection:
         "row",
@@ -1260,7 +1201,6 @@ const styles =
       borderColor:
         "#F2B8B5",
     },
-
     errorText: {
       flex: 1,
       fontSize: 13,
@@ -1269,11 +1209,9 @@ const styles =
       fontWeight:
         "600",
     },
-
     field: {
       marginBottom: 17,
     },
-
     label: {
       marginBottom: 8,
       fontSize: 14,
@@ -1281,7 +1219,6 @@ const styles =
         "700",
       color: "#3A1821",
     },
-
     input: {
       minHeight: 52,
       borderRadius: 12,
@@ -1294,19 +1231,16 @@ const styles =
       fontSize: 15,
       color: "#24151A",
     },
-
     multilineInput: {
       minHeight: 100,
       paddingTop: 14,
       paddingBottom: 14,
     },
-
     genderRow: {
       flexDirection:
         "row",
       gap: 9,
     },
-
     genderButton: {
       flex: 1,
       minHeight: 48,
@@ -1321,25 +1255,21 @@ const styles =
       borderColor:
         "#E5D6DA",
     },
-
     genderButtonActive: {
       backgroundColor:
         "#A93650",
       borderColor:
         "#A93650",
     },
-
     genderText: {
       fontSize: 14,
       fontWeight:
         "700",
       color: "#705963",
     },
-
     genderTextActive: {
       color: "#FFFFFF",
     },
-
     dateRow: {
       flex: 1,
       minHeight: 50,
@@ -1350,16 +1280,13 @@ const styles =
       justifyContent:
         "space-between",
     },
-
     dateText: {
       fontSize: 15,
       color: "#24151A",
     },
-
     placeholderText: {
       color: "#999999",
     },
-
     submitButton: {
       minHeight: 56,
       borderRadius: 14,
@@ -1384,18 +1311,15 @@ const styles =
         height: 3,
       },
     },
-
     submitButtonDisabled: {
       opacity: 0.65,
     },
-
     submitText: {
       fontSize: 16,
       fontWeight:
         "800",
       color: "#FFFFFF",
     },
-
     bottomSpace: {
       height: 20,
     },

@@ -2686,11 +2686,11 @@ heroDescription: {
 },
 
 heroInfoCard: {
-  width: 145,
+  width: 167,
   flexDirection: "row",
   alignItems: "center",
-  paddingVertical: 13,
-  paddingHorizontal: 12,
+  paddingVertical: 15,
+  paddingHorizontal: 16,
   borderRadius: 18,
   backgroundColor: "rgba(255,255,255,0.94)",
 },
@@ -2700,7 +2700,7 @@ heroInfoItem: {
 },
 
 heroInfoValue: {
-  fontSize: 20,
+  fontSize: 17,
   fontWeight: "900",
   color: "#7A263A",
 },
@@ -2710,14 +2710,14 @@ heroInfoLabel: {
   lineHeight: 11,
   fontWeight: "600",
   color: "#777",
-  marginTop: 2,
+  marginTop: 4,
 },
 
 heroInfoDivider: {
   width: 1,
   height: 38,
   backgroundColor: "#E6D6DA",
-  marginHorizontal: 8,
+  marginHorizontal: 12,
 },
   // =======================================================
   // SECTION

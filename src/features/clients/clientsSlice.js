@@ -66,6 +66,7 @@ export const createClient = createAsyncThunk(
         email = "",
         gender = "",
         dateOfBirth = "",
+        anniversaryDate = "",
         address = "",
         notes = "",
         profileImage = null,
@@ -79,6 +80,7 @@ export const createClient = createAsyncThunk(
       console.log("EMAIL:", email);
       console.log("GENDER:", gender);
       console.log("DOB:", dateOfBirth);
+      console.log("ANNIVERSARY:", anniversaryDate);
       console.log("ADDRESS:", address);
       console.log("NOTES:", notes);
       console.log(
@@ -125,9 +127,18 @@ export const createClient = createAsyncThunk(
         }
       }
 
+      if (anniversaryDate) {
+        try {
+          parameters.anniversaryDate =
+            new Date(anniversaryDate).toISOString();
+        } catch {
+          parameters.anniversaryDate = "";
+        }
+      }
+
       /* =====================================================
          IMAGE UPLOAD
-         
+
          IMPORTANT:
          DO NOT USE:
          fetch + FormData + Blob
@@ -201,13 +212,16 @@ export const createClient = createAsyncThunk(
         console.log(
           "========================================"
         );
+
         console.log(
           "CLIENT CREATED SUCCESSFULLY"
         );
+
         console.log(
           "CLIENT:",
           data.client
         );
+
         console.log(
           "========================================"
         );
@@ -217,7 +231,7 @@ export const createClient = createAsyncThunk(
 
       /* =====================================================
          NO IMAGE
-         
+
          Since there is no file, normal FormData is safe
          because there is no native file/blob part.
       ===================================================== */
@@ -272,10 +286,13 @@ export const createClient = createAsyncThunk(
       console.log(
         "========================================"
       );
+
       console.log(
         "CREATE CLIENT ERROR"
       );
+
       console.log(error);
+
       console.log(
         "========================================"
       );

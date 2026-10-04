@@ -238,21 +238,16 @@ export default function MoreScreen() {
               }
             />
 
-            <Divider />
+        <Divider />
 
-            <MenuItem
-              icon="⌕"
-              title="Notifications"
-              subtitle="Manage app notifications"
-              onPress={() =>
-                Alert.alert(
-                  "Notifications",
-                  "Notification settings will be added here."
-                )
-              }
-            />
+<MenuItem
+  icon="⌕"
+  title="Notifications"
+  subtitle="Birthday & anniversary reminders"
+  onPress={() => router.push("/notifications")}
+/>
 
-            <Divider />
+<Divider />
 
             <MenuItem
               icon="🔐"

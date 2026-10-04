@@ -510,50 +510,30 @@ export default function BillingScreen() {
         }
       );
 
-    return `✨ *Glow Salon – Invoice* ✨
+return `Glow Salon - Invoice
 
-Hello ${clientName} 👋
+Hello ${clientName},
 
-Thank you for visiting *Glow Salon*.
+Invoice: ${invoiceNumber}
+Date: ${formattedDate}
 
-🧾 *Invoice:* ${invoiceNumber}
-📅 *Date:* ${formattedDate}
+Client: ${clientName}
 
-👤 *Client*
-${clientName}
-📱 ${clientPhone}
-
-💇 *Services*
-
+Services:
 ${serviceText}
 
-👨‍💼 *Staff / Stylist*
-${stylistName}
+Staff: ${stylistName}
 
-────────────────
-Subtotal: ₹${formatMoney(
-      finalSubtotal
-    )}
+Subtotal: ₹${formatMoney(finalSubtotal)}
+Discount: ₹${formatMoney(finalDiscount)}
+Total: ₹${formatMoney(finalTotal)}
 
-Discount: ₹${formatMoney(
-      finalDiscount
-    )}
-
-────────────────
-💰 *Total: ₹${formatMoney(
-      finalTotal
-    )}*
-
-💳 *Payment*
+Payment: ${finalPaymentMethod}
 Status: ${finalPaymentStatus}
-Method: ${finalPaymentMethod}
 
-Thank you for choosing
-✨ *Glow Salon* ✨
-
-We look forward to seeing you again ❤️`;
-  };
-
+Thank you for choosing Glow Salon.
+We look forward to seeing you again.`;
+ };
   // ======================================================
   // GENERATE + WHATSAPP
   // ======================================================
@@ -2778,4 +2758,3 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 });
-
