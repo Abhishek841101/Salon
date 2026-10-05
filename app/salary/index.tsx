@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
   ActivityIndicator,
   Alert,
@@ -15,10 +21,15 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { useDispatch, useSelector } from "react-redux";
+
 import { Ionicons } from "@expo/vector-icons";
 
-import type { AppDispatch, RootState } from "../../src/store";
+import type {
+  AppDispatch,
+  RootState,
+} from "../../src/store";
 
 import {
   createSalary,
@@ -31,6 +42,17 @@ import {
   type PaymentMethod,
   type Salary,
 } from "../../src/features/salary/salarySlice";
+
+import {
+  fetchStylists,
+  type Stylist,
+} from "../../src/features/stylist/stylistSlice";
+
+/*
+|--------------------------------------------------------------------------
+| CONSTANTS
+|--------------------------------------------------------------------------
+*/
 
 const MONTH_NAMES = [
   "January",
@@ -54,67 +76,155 @@ const PAYMENT_METHODS: PaymentMethod[] = [
   "OTHER",
 ];
 
-const formatMoney = (value: number = 0) => {
-  return `₹${Number(value || 0).toLocaleString("en-IN", {
+/*
+|--------------------------------------------------------------------------
+| TYPES
+|--------------------------------------------------------------------------
+*/
+
+type SalaryRow = {
+  key: string;
+
+  _id?: string;
+
+  stylist: Stylist;
+
+  month: string;
+
+  basicSalary: number;
+  overtimeSalary: number;
+
+  commission: number;
+  bonus: number;
+
+  advance: number;
+  deduction: number;
+
+  grossSalary: number;
+  netSalary: number;
+
+  paymentStatus: "PENDING" | "PAID";
+
+  paymentDate: string | null;
+
+  paymentMethod: PaymentMethod;
+
+  notes?: string;
+
+  attendance?: Salary["attendance"];
+
+  generated: boolean;
+};
+
+/*
+|--------------------------------------------------------------------------
+| HELPERS
+|--------------------------------------------------------------------------
+*/
+
+const formatMoney = (
+  value: number = 0
+) => {
+  return `₹${Number(
+    value || 0
+  ).toLocaleString("en-IN", {
     maximumFractionDigits: 0,
   })}`;
 };
 
-const getMonthLabel = (month: string) => {
+const getMonthLabel = (
+  month: string
+) => {
   if (!month) return "";
 
-  const [year, monthNumber] = month.split("-");
+  const [year, monthNumber] =
+    month.split("-");
 
-  const index = Number(monthNumber) - 1;
+  const index =
+    Number(monthNumber) - 1;
 
-  if (index < 0 || index > 11) {
+  if (
+    index < 0 ||
+    index > 11
+  ) {
     return month;
   }
 
   return `${MONTH_NAMES[index]} ${year}`;
 };
 
-const getCurrentMonth = () => {
-  const date = new Date();
+const getPreviousMonth = (
+  month: string
+) => {
+  const [year, monthNumber] =
+    month.split("-").map(Number);
+
+  const date = new Date(
+    year,
+    monthNumber - 2,
+    1
+  );
 
   return `${date.getFullYear()}-${String(
     date.getMonth() + 1
   ).padStart(2, "0")}`;
 };
 
-const getPreviousMonth = (month: string) => {
-  const [year, monthNumber] = month.split("-").map(Number);
+const getNextMonth = (
+  month: string
+) => {
+  const [year, monthNumber] =
+    month.split("-").map(Number);
 
-  const date = new Date(year, monthNumber - 2, 1);
-
-  return `${date.getFullYear()}-${String(
-    date.getMonth() + 1
-  ).padStart(2, "0")}`;
-};
-
-const getNextMonth = (month: string) => {
-  const [year, monthNumber] = month.split("-").map(Number);
-
-  const date = new Date(year, monthNumber, 1);
+  const date = new Date(
+    year,
+    monthNumber,
+    1
+  );
 
   return `${date.getFullYear()}-${String(
     date.getMonth() + 1
   ).padStart(2, "0")}`;
 };
 
-const getInitials = (name: string = "") => {
+const getInitials = (
+  name: string = ""
+) => {
   return (
     name
       .trim()
       .split(/\s+/)
       .slice(0, 2)
-      .map((part) => part.charAt(0).toUpperCase())
+      .map((part) =>
+        part
+          .charAt(0)
+          .toUpperCase()
+      )
       .join("") || "ST"
   );
 };
 
+/*
+|--------------------------------------------------------------------------
+| MAIN SCREEN
+|--------------------------------------------------------------------------
+*/
+
 export default function SalaryScreen() {
-  const dispatch = useDispatch<AppDispatch>();
+  const dispatch =
+    useDispatch<AppDispatch>();
+
+  const salaryState =
+    useSelector(
+      (state: RootState) =>
+        state.salary
+    );
+
+  const stylistState =
+    useSelector(
+      (state: RootState) =>
+        state.stylists
+    );
 
   const {
     salaries,
@@ -126,137 +236,556 @@ export default function SalaryScreen() {
     selectedMonth,
     search,
     status,
-  } = useSelector((state: RootState) => state.salary);
+  } = salaryState;
 
-  const [showMonthPicker, setShowMonthPicker] = useState(false);
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-
-  const [selectedSalary, setSelectedSalary] =
-    useState<Salary | null>(null);
-
-  const [selectedPaymentMethod, setSelectedPaymentMethod] =
-    useState<PaymentMethod>("CASH");
-
-  const [commission, setCommission] = useState("");
-  const [bonus, setBonus] = useState("");
-  const [advance, setAdvance] = useState("");
-  const [deduction, setDeduction] = useState("");
-  const [notes, setNotes] = useState("");
-
-  const [refreshing, setRefreshing] = useState(false);
+  const {
+    stylists,
+    loading: stylistsLoading,
+  } = stylistState;
 
   /*
   |--------------------------------------------------------------------------
-  | Load Salary
+  | MODALS
   |--------------------------------------------------------------------------
   */
 
-  const loadSalary = useCallback(async () => {
-    await dispatch(
-      fetchSalaries({
-        month: selectedMonth,
-        search,
-        status,
-      })
+  const [
+    showMonthPicker,
+    setShowMonthPicker,
+  ] = useState(false);
+
+  const [
+    showGenerateModal,
+    setShowGenerateModal,
+  ] = useState(false);
+
+  const [
+    showPaymentModal,
+    setShowPaymentModal,
+  ] = useState(false);
+
+  /*
+  |--------------------------------------------------------------------------
+  | SELECTED
+  |--------------------------------------------------------------------------
+  */
+
+  const [
+    selectedSalary,
+    setSelectedSalary,
+  ] = useState<SalaryRow | null>(
+    null
+  );
+
+  const [
+    selectedPaymentMethod,
+    setSelectedPaymentMethod,
+  ] =
+    useState<PaymentMethod>(
+      "CASH"
     );
-  }, [dispatch, selectedMonth, search, status]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | FORM
+  |--------------------------------------------------------------------------
+  */
+
+  const [
+    commission,
+    setCommission,
+  ] = useState("");
+
+  const [
+    bonus,
+    setBonus,
+  ] = useState("");
+
+  const [
+    advance,
+    setAdvance,
+  ] = useState("");
+
+  const [
+    deduction,
+    setDeduction,
+  ] = useState("");
+
+  const [
+    notes,
+    setNotes,
+  ] = useState("");
+
+  const [
+    refreshing,
+    setRefreshing,
+  ] = useState(false);
+
+  /*
+  |--------------------------------------------------------------------------
+  | LOAD DATA
+  |--------------------------------------------------------------------------
+  */
+
+  const loadData =
+    useCallback(async () => {
+      await Promise.all([
+        dispatch(
+          fetchStylists({
+            status: "ACTIVE",
+          })
+        ),
+
+        dispatch(
+          fetchSalaries({
+            month: selectedMonth,
+            search: "",
+            status: "",
+          })
+        ),
+      ]);
+    }, [
+      dispatch,
+      selectedMonth,
+    ]);
 
   useEffect(() => {
-    loadSalary();
-  }, [loadSalary]);
+    loadData();
+  }, [loadData]);
 
   /*
   |--------------------------------------------------------------------------
-  | Refresh
+  | MERGE STAFF + SALARY
   |--------------------------------------------------------------------------
   */
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
+  const mergedRows =
+    useMemo<SalaryRow[]>(() => {
+      const salaryMap =
+        new Map<string, Salary>();
 
-    await loadSalary();
+      salaries.forEach(
+        (salary) => {
+          const stylistId =
+            typeof salary.stylist ===
+            "object"
+              ? salary.stylist?._id
+              : "";
 
-    setRefreshing(false);
-  }, [loadSalary]);
+          if (stylistId) {
+            salaryMap.set(
+              String(stylistId),
+              salary
+            );
+          }
+        }
+      );
+
+      return stylists
+        .filter(
+          (stylist) =>
+            stylist.status !==
+            "INACTIVE"
+        )
+        .map((stylist) => {
+          const salary =
+            salaryMap.get(
+              String(stylist._id)
+            );
+
+          if (salary) {
+            return {
+              key: `${stylist._id}-${selectedMonth}`,
+
+              _id: salary._id,
+
+              stylist,
+
+              month:
+                salary.month,
+
+              basicSalary:
+                Number(
+                  salary.basicSalary ||
+                    0
+                ),
+
+              overtimeSalary:
+                Number(
+                  salary.overtimeSalary ||
+                    0
+                ),
+
+              commission:
+                Number(
+                  salary.commission ||
+                    0
+                ),
+
+              bonus:
+                Number(
+                  salary.bonus ||
+                    0
+                ),
+
+              advance:
+                Number(
+                  salary.advance ||
+                    0
+                ),
+
+              deduction:
+                Number(
+                  salary.deduction ||
+                    0
+                ),
+
+              grossSalary:
+                Number(
+                  salary.grossSalary ||
+                    0
+                ),
+
+              netSalary:
+                Number(
+                  salary.netSalary ||
+                    0
+                ),
+
+              paymentStatus:
+                salary.paymentStatus ||
+                "PENDING",
+
+              paymentDate:
+                salary.paymentDate ||
+                null,
+
+              paymentMethod:
+                salary.paymentMethod ||
+                "CASH",
+
+              notes:
+                salary.notes || "",
+
+              attendance:
+                salary.attendance,
+
+              generated: true,
+            };
+          }
+
+          /*
+          |--------------------------------------------------------------------------
+          | NO SALARY GENERATED YET
+          |--------------------------------------------------------------------------
+          */
+
+          const monthlySalary =
+            Number(
+              stylist.monthlySalary ||
+                0
+            );
+
+          return {
+            key: `${stylist._id}-${selectedMonth}`,
+
+            _id: undefined,
+
+            stylist,
+
+            month:
+              selectedMonth,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Basic salary preview
+            |
+            | Monthly salary is divided by
+            | 26 working days only for display.
+            | Actual generated salary comes
+            | from backend attendance calculation.
+            |--------------------------------------------------------------------------
+            */
+
+            basicSalary:
+              stylist.salaryType ===
+              "DAILY"
+                ? Number(
+                    stylist.basicSalary8h ||
+                      0
+                  )
+                : monthlySalary,
+
+            overtimeSalary: 0,
+
+            commission: 0,
+
+            bonus: 0,
+
+            advance: 0,
+
+            deduction: 0,
+
+            grossSalary:
+              stylist.salaryType ===
+              "DAILY"
+                ? Number(
+                    stylist.basicSalary8h ||
+                      0
+                  )
+                : monthlySalary,
+
+            netSalary:
+              stylist.salaryType ===
+              "DAILY"
+                ? Number(
+                    stylist.basicSalary8h ||
+                      0
+                  )
+                : monthlySalary,
+
+            paymentStatus:
+              "PENDING",
+
+            paymentDate: null,
+
+            paymentMethod:
+              "CASH",
+
+            notes: "",
+
+            attendance: undefined,
+
+            generated: false,
+          };
+        });
+    }, [
+      stylists,
+      salaries,
+      selectedMonth,
+    ]);
 
   /*
   |--------------------------------------------------------------------------
-  | Local Stats
+  | SEARCH + STATUS FILTER
   |--------------------------------------------------------------------------
   */
 
-  const staffCount = salaries.length;
+  const filteredRows =
+    useMemo(() => {
+      let rows =
+        mergedRows;
 
-  const paidCount = salaries.filter(
-    (item) => item.paymentStatus === "PAID"
-  ).length;
+      const searchText =
+        search
+          .trim()
+          .toLowerCase();
 
-  const pendingCount = salaries.filter(
-    (item) => item.paymentStatus === "PENDING"
-  ).length;
+      if (searchText) {
+        rows = rows.filter(
+          (row) => {
+            const name =
+              row.stylist.name
+                ?.toLowerCase() ||
+              "";
+
+            const phone =
+              row.stylist.phone
+                ?.toLowerCase() ||
+              "";
+
+            return (
+              name.includes(
+                searchText
+              ) ||
+              phone.includes(
+                searchText
+              )
+            );
+          }
+        );
+      }
+
+      if (status) {
+        rows = rows.filter(
+          (row) =>
+            row.paymentStatus ===
+            status
+        );
+      }
+
+      return rows;
+    }, [
+      mergedRows,
+      search,
+      status,
+    ]);
 
   /*
   |--------------------------------------------------------------------------
-  | Generate Salary
+  | COUNTS
   |--------------------------------------------------------------------------
   */
 
-  const openGenerateModal = (salary: Salary) => {
-    setSelectedSalary(salary);
+  const staffCount =
+    stylists.filter(
+      (stylist) =>
+        stylist.status !==
+        "INACTIVE"
+    ).length;
 
-    setCommission(String(salary.commission || ""));
-    setBonus(String(salary.bonus || ""));
-    setAdvance(String(salary.advance || ""));
-    setDeduction(String(salary.deduction || ""));
-    setNotes(salary.notes || "");
+  const paidCount =
+    mergedRows.filter(
+      (row) =>
+        row.paymentStatus ===
+        "PAID"
+    ).length;
+
+  const pendingCount =
+    mergedRows.filter(
+      (row) =>
+        row.paymentStatus ===
+        "PENDING"
+    ).length;
+
+  /*
+  |--------------------------------------------------------------------------
+  | TOTALS
+  |--------------------------------------------------------------------------
+  |
+  | Backend totals only include generated
+  | salary records. This is intentional.
+  |
+  */
+
+  const totalNet =
+    mergedRows.reduce(
+      (sum, row) =>
+        sum +
+        Number(
+          row.generated
+            ? row.netSalary
+            : 0
+        ),
+      0
+    );
+
+  const totalPaid =
+    mergedRows.reduce(
+      (sum, row) =>
+        sum +
+        Number(
+          row.generated &&
+          row.paymentStatus ===
+            "PAID"
+            ? row.netSalary
+            : 0
+        ),
+      0
+    );
+
+  const totalPending =
+    mergedRows.reduce(
+      (sum, row) =>
+        sum +
+        Number(
+          row.generated &&
+          row.paymentStatus ===
+            "PENDING"
+            ? row.netSalary
+            : 0
+        ),
+      0
+    );
+
+  /*
+  |--------------------------------------------------------------------------
+  | REFRESH
+  |--------------------------------------------------------------------------
+  */
+
+  const onRefresh =
+    useCallback(async () => {
+      setRefreshing(true);
+
+      await loadData();
+
+      setRefreshing(false);
+    }, [loadData]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | MONTH
+  |--------------------------------------------------------------------------
+  */
+
+  const changeMonth = (
+    direction:
+      | "prev"
+      | "next"
+  ) => {
+    const newMonth =
+      direction === "prev"
+        ? getPreviousMonth(
+            selectedMonth
+          )
+        : getNextMonth(
+            selectedMonth
+          );
+
+    dispatch(
+      setSelectedMonth(
+        newMonth
+      )
+    );
+
+    setShowMonthPicker(false);
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | GENERATE / EDIT
+  |--------------------------------------------------------------------------
+  */
+
+  const openGenerateModal = (
+    row: SalaryRow
+  ) => {
+    setSelectedSalary(row);
+
+    setCommission(
+      String(
+        row.commission || ""
+      )
+    );
+
+    setBonus(
+      String(row.bonus || "")
+    );
+
+    setAdvance(
+      String(row.advance || "")
+    );
+
+    setDeduction(
+      String(
+        row.deduction || ""
+      )
+    );
+
+    setNotes(
+      row.notes || ""
+    );
 
     setShowGenerateModal(true);
   };
 
-  const closeGenerateModal = () => {
-    if (generating) return;
+  const closeGenerateModal =
+    () => {
+      if (generating) return;
 
-    setShowGenerateModal(false);
-    setSelectedSalary(null);
-
-    setCommission("");
-    setBonus("");
-    setAdvance("");
-    setDeduction("");
-    setNotes("");
-  };
-
-  const handleGenerateSalary = async () => {
-    if (!selectedSalary?.stylist?._id) {
-      Alert.alert("Error", "Stylist information is missing.");
-      return;
-    }
-
-    const result = await dispatch(
-      createSalary({
-        stylist: selectedSalary.stylist._id,
-        month: selectedMonth,
-
-        commission: Number(commission) || 0,
-        bonus: Number(bonus) || 0,
-
-        advance: Number(advance) || 0,
-        deduction: Number(deduction) || 0,
-
-        paymentMethod:
-          selectedSalary.paymentMethod || "CASH",
-
-        notes: notes.trim(),
-      })
-    );
-
-    if (createSalary.fulfilled.match(result)) {
-      setShowGenerateModal(false);
-
-      Alert.alert(
-        "Salary Updated",
-        `${selectedSalary.stylist.name}'s salary has been generated successfully.`
+      setShowGenerateModal(
+        false
       );
 
       setSelectedSalary(null);
@@ -266,86 +795,210 @@ export default function SalaryScreen() {
       setAdvance("");
       setDeduction("");
       setNotes("");
+    };
 
-      await loadSalary();
-    } else {
-      Alert.alert(
-        "Error",
-        result.payload || "Failed to generate salary."
-      );
-    }
-  };
+  const handleGenerateSalary =
+    async () => {
+      if (
+        !selectedSalary
+          ?.stylist?._id
+      ) {
+        Alert.alert(
+          "Error",
+          "Stylist information is missing."
+        );
+        return;
+      }
+
+      const result =
+        await dispatch(
+          createSalary({
+            stylist:
+              selectedSalary
+                .stylist._id,
+
+            month:
+              selectedMonth,
+
+            commission:
+              Number(
+                commission
+              ) || 0,
+
+            bonus:
+              Number(bonus) || 0,
+
+            advance:
+              Number(advance) || 0,
+
+            deduction:
+              Number(
+                deduction
+              ) || 0,
+
+            paymentMethod:
+              selectedSalary
+                .paymentMethod ||
+              "CASH",
+
+            notes:
+              notes.trim(),
+          })
+        );
+
+      if (
+        createSalary.fulfilled.match(
+          result
+        )
+      ) {
+        setShowGenerateModal(
+          false
+        );
+
+        Alert.alert(
+          "Salary Updated",
+          `${selectedSalary.stylist.name}'s salary has been generated successfully.`
+        );
+
+        setSelectedSalary(null);
+
+        setCommission("");
+        setBonus("");
+        setAdvance("");
+        setDeduction("");
+        setNotes("");
+
+        await loadData();
+      } else {
+        Alert.alert(
+          "Error",
+          result.payload ||
+            "Failed to generate salary."
+        );
+      }
+    };
 
   /*
   |--------------------------------------------------------------------------
-  | Payment
+  | PAYMENT
   |--------------------------------------------------------------------------
   */
 
-  const openPaymentModal = (salary: Salary) => {
-    setSelectedSalary(salary);
+  const openPaymentModal = (
+    row: SalaryRow
+  ) => {
+    if (!row._id) {
+      Alert.alert(
+        "Generate Salary First",
+        "Please generate this staff member's salary before marking it as paid."
+      );
+      return;
+    }
+
+    setSelectedSalary(row);
 
     setSelectedPaymentMethod(
-      salary.paymentMethod || "CASH"
+      row.paymentMethod ||
+        "CASH"
     );
 
     setShowPaymentModal(true);
   };
 
-  const closePaymentModal = () => {
-    if (paying) return;
+  const closePaymentModal =
+    () => {
+      if (paying) return;
 
-    setShowPaymentModal(false);
-    setSelectedSalary(null);
-  };
+      setShowPaymentModal(
+        false
+      );
 
-  const handleMarkPaid = async () => {
-    if (!selectedSalary?._id) return;
-
-    const result = await dispatch(
-      markSalaryPaid({
-        id: selectedSalary._id,
-        paymentMethod: selectedPaymentMethod,
-        paymentDate: new Date().toISOString(),
-      })
-    );
-
-    if (markSalaryPaid.fulfilled.match(result)) {
-      setShowPaymentModal(false);
       setSelectedSalary(null);
+    };
 
-      Alert.alert(
-        "Payment Successful",
-        "Salary has been marked as paid."
-      );
+  const handleMarkPaid =
+    async () => {
+      if (
+        !selectedSalary?._id
+      ) {
+        return;
+      }
 
-      await loadSalary();
-    } else {
-      Alert.alert(
-        "Payment Failed",
-        result.payload || "Unable to mark salary as paid."
-      );
-    }
-  };
+      const result =
+        await dispatch(
+          markSalaryPaid({
+            id: selectedSalary._id,
 
-  const handleMarkPending = (salary: Salary) => {
+            paymentMethod:
+              selectedPaymentMethod,
+
+            paymentDate:
+              new Date().toISOString(),
+          })
+        );
+
+      if (
+        markSalaryPaid.fulfilled.match(
+          result
+        )
+      ) {
+        setShowPaymentModal(
+          false
+        );
+
+        setSelectedSalary(null);
+
+        Alert.alert(
+          "Payment Successful",
+          "Salary has been marked as paid."
+        );
+
+        await loadData();
+      } else {
+        Alert.alert(
+          "Payment Failed",
+          result.payload ||
+            "Unable to mark salary as paid."
+        );
+      }
+    };
+
+  /*
+  |--------------------------------------------------------------------------
+  | MARK PENDING
+  |--------------------------------------------------------------------------
+  */
+
+  const handleMarkPending = (
+    row: SalaryRow
+  ) => {
+    if (!row._id) return;
+
     Alert.alert(
       "Mark as Pending",
-      `Are you sure you want to mark ${salary.stylist?.name}'s salary as pending?`,
+      `Are you sure you want to mark ${row.stylist.name}'s salary as pending?`,
       [
         {
           text: "Cancel",
           style: "cancel",
         },
+
         {
           text: "Yes",
           onPress: async () => {
-            const result = await dispatch(
-              markSalaryPending(salary._id)
-            );
+            const result =
+              await dispatch(
+                markSalaryPending(
+                  row._id as string
+                )
+              );
 
-            if (markSalaryPending.fulfilled.match(result)) {
-              await loadSalary();
+            if (
+              markSalaryPending.fulfilled.match(
+                result
+              )
+            ) {
+              await loadData();
             } else {
               Alert.alert(
                 "Error",
@@ -361,64 +1014,86 @@ export default function SalaryScreen() {
 
   /*
   |--------------------------------------------------------------------------
-  | Month Change
-  |--------------------------------------------------------------------------
-  */
-
-  const changeMonth = (direction: "prev" | "next") => {
-    const newMonth =
-      direction === "prev"
-        ? getPreviousMonth(selectedMonth)
-        : getNextMonth(selectedMonth);
-
-    dispatch(setSelectedMonth(newMonth));
-
-    setShowMonthPicker(false);
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | Salary List
+  | RENDER SALARY CARD
   |--------------------------------------------------------------------------
   */
 
   const renderSalary = ({
     item,
   }: {
-    item: Salary;
+    item: SalaryRow;
   }) => {
-    const stylist = item.stylist;
+    const stylist =
+      item.stylist;
 
-    const isPaid = item.paymentStatus === "PAID";
+    const isPaid =
+      item.paymentStatus ===
+      "PAID";
 
     return (
-      <View style={styles.salaryCard}>
-        <View style={styles.salaryTopRow}>
-          <View style={styles.staffInfo}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {getInitials(stylist?.name)}
+      <View
+        style={
+          styles.salaryCard
+        }
+      >
+        {/* TOP */}
+
+        <View
+          style={
+            styles.salaryTopRow
+          }
+        >
+          <View
+            style={
+              styles.staffInfo
+            }
+          >
+            <View
+              style={
+                styles.avatar
+              }
+            >
+              <Text
+                style={
+                  styles.avatarText
+                }
+              >
+                {getInitials(
+                  stylist.name
+                )}
               </Text>
             </View>
 
-            <View style={styles.staffTextContainer}>
+            <View
+              style={
+                styles.staffTextContainer
+              }
+            >
               <Text
-                style={styles.staffName}
+                style={
+                  styles.staffName
+                }
                 numberOfLines={1}
               >
-                {stylist?.name || "Unknown Staff"}
+                {stylist.name}
               </Text>
 
               <Text
-                style={styles.staffSpecialization}
+                style={
+                  styles.staffSpecialization
+                }
                 numberOfLines={1}
               >
-                {stylist?.specialization ||
+                {stylist.specialization ||
                   "Salon Staff"}
               </Text>
 
-              {!!stylist?.phone && (
-                <Text style={styles.staffPhone}>
+              {!!stylist.phone && (
+                <Text
+                  style={
+                    styles.staffPhone
+                  }
+                >
                   {stylist.phone}
                 </Text>
               )}
@@ -450,22 +1125,36 @@ export default function SalaryScreen() {
                   : styles.pendingText,
               ]}
             >
-              {isPaid ? "PAID" : "PENDING"}
+              {item.generated
+                ? isPaid
+                  ? "PAID"
+                  : "PENDING"
+                : "NOT GENERATED"}
             </Text>
           </View>
         </View>
 
-        <View style={styles.divider} />
+        <View
+          style={styles.divider}
+        />
 
-        <View style={styles.salaryGrid}>
+        {/* SALARY GRID */}
+
+        <View
+          style={styles.salaryGrid}
+        >
           <SalaryAmount
             label="Basic"
-            value={item.basicSalary}
+            value={
+              item.basicSalary
+            }
           />
 
           <SalaryAmount
             label="Overtime"
-            value={item.overtimeSalary}
+            value={
+              item.overtimeSalary
+            }
           />
 
           <SalaryAmount
@@ -475,67 +1164,155 @@ export default function SalaryScreen() {
 
           <SalaryAmount
             label="Commission"
-            value={item.commission}
+            value={
+              item.commission
+            }
           />
         </View>
 
-        <View style={styles.secondaryRow}>
-          <View style={styles.secondaryItem}>
-            <Text style={styles.secondaryLabel}>
+        {/* SECONDARY */}
+
+        <View
+          style={
+            styles.secondaryRow
+          }
+        >
+          <View
+            style={
+              styles.secondaryItem
+            }
+          >
+            <Text
+              style={
+                styles.secondaryLabel
+              }
+            >
               Advance
             </Text>
 
-            <Text style={styles.deductionValue}>
-              -{formatMoney(item.advance)}
+            <Text
+              style={
+                styles.deductionValue
+              }
+            >
+              -{formatMoney(
+                item.advance
+              )}
             </Text>
           </View>
 
-          <View style={styles.secondaryItem}>
-            <Text style={styles.secondaryLabel}>
+          <View
+            style={
+              styles.secondaryItem
+            }
+          >
+            <Text
+              style={
+                styles.secondaryLabel
+              }
+            >
               Deduction
             </Text>
 
-            <Text style={styles.deductionValue}>
-              -{formatMoney(item.deduction)}
+            <Text
+              style={
+                styles.deductionValue
+              }
+            >
+              -{formatMoney(
+                item.deduction
+              )}
             </Text>
           </View>
 
-          <View style={styles.secondaryItem}>
-            <Text style={styles.secondaryLabel}>
+          <View
+            style={
+              styles.secondaryItem
+            }
+          >
+            <Text
+              style={
+                styles.secondaryLabel
+              }
+            >
               Gross
             </Text>
 
-            <Text style={styles.grossValue}>
-              {formatMoney(item.grossSalary)}
+            <Text
+              style={
+                styles.grossValue
+              }
+            >
+              {formatMoney(
+                item.grossSalary
+              )}
             </Text>
           </View>
         </View>
 
-        <View style={styles.netSalaryRow}>
+        {/* NET */}
+
+        <View
+          style={
+            styles.netSalaryRow
+          }
+        >
           <View>
-            <Text style={styles.netLabel}>
+            <Text
+              style={
+                styles.netLabel
+              }
+            >
               Net Salary
             </Text>
 
-            <Text style={styles.netSubText}>
-              {item.attendance
-                ? `${item.attendance.presentDays || 0} present • ${Number(
-                    item.attendance.overtimeHours || 0
-                  ).toFixed(1)}h OT`
-                : "Salary generated"}
+            <Text
+              style={
+                styles.netSubText
+              }
+            >
+              {item.generated
+                ? item.attendance
+                  ? `${
+                      item.attendance
+                        .presentDays ||
+                      0
+                    } present • ${Number(
+                      item.attendance
+                        .overtimeHours ||
+                        0
+                    ).toFixed(1)}h OT`
+                  : "Salary generated"
+                : "Salary not generated yet"}
             </Text>
           </View>
 
-          <Text style={styles.netSalary}>
-            {formatMoney(item.netSalary)}
+          <Text
+            style={
+              styles.netSalary
+            }
+          >
+            {formatMoney(
+              item.netSalary
+            )}
           </Text>
         </View>
 
-        <View style={styles.actionRow}>
+        {/* ACTIONS */}
+
+        <View
+          style={styles.actionRow}
+        >
           <TouchableOpacity
             activeOpacity={0.8}
-            style={styles.editButton}
-            onPress={() => openGenerateModal(item)}
+            style={
+              styles.editButton
+            }
+            onPress={() =>
+              openGenerateModal(
+                item
+              )
+            }
           >
             <Ionicons
               name="create-outline"
@@ -543,46 +1320,71 @@ export default function SalaryScreen() {
               color="#111827"
             />
 
-            <Text style={styles.editButtonText}>
-              Edit Salary
+            <Text
+              style={
+                styles.editButtonText
+              }
+            >
+              {item.generated
+                ? "Edit Salary"
+                : "Generate Salary"}
             </Text>
           </TouchableOpacity>
 
-          {isPaid ? (
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={styles.pendingButton}
-              onPress={() =>
-                handleMarkPending(item)
-              }
-            >
-              <Ionicons
-                name="time-outline"
-                size={18}
-                color="#92400E"
-              />
+          {item.generated &&
+            (isPaid ? (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={
+                  styles.pendingButton
+                }
+                onPress={() =>
+                  handleMarkPending(
+                    item
+                  )
+                }
+              >
+                <Ionicons
+                  name="time-outline"
+                  size={18}
+                  color="#92400E"
+                />
 
-              <Text style={styles.pendingButtonText}>
-                Mark Pending
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={styles.payButton}
-              onPress={() => openPaymentModal(item)}
-            >
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={18}
-                color="#FFFFFF"
-              />
+                <Text
+                  style={
+                    styles.pendingButtonText
+                  }
+                >
+                  Mark Pending
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={
+                  styles.payButton
+                }
+                onPress={() =>
+                  openPaymentModal(
+                    item
+                  )
+                }
+              >
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={18}
+                  color="#FFFFFF"
+                />
 
-              <Text style={styles.payButtonText}>
-                Mark Paid
-              </Text>
-            </TouchableOpacity>
-          )}
+                <Text
+                  style={
+                    styles.payButtonText
+                  }
+                >
+                  Mark Paid
+                </Text>
+              </TouchableOpacity>
+            ))}
         </View>
       </View>
     );
@@ -590,43 +1392,70 @@ export default function SalaryScreen() {
 
   /*
   |--------------------------------------------------------------------------
-  | Empty
+  | EMPTY
   |--------------------------------------------------------------------------
   */
 
   const renderEmpty = () => {
-    if (loading) {
+    if (
+      loading ||
+      stylistsLoading
+    ) {
       return (
-        <View style={styles.emptyContainer}>
+        <View
+          style={
+            styles.emptyContainer
+          }
+        >
           <ActivityIndicator
             size="large"
             color="#111827"
           />
 
-          <Text style={styles.emptyTitle}>
-            Loading salary...
+          <Text
+            style={
+              styles.emptyTitle
+            }
+          >
+            Loading staff...
           </Text>
         </View>
       );
     }
 
     return (
-      <View style={styles.emptyContainer}>
-        <View style={styles.emptyIcon}>
+      <View
+        style={
+          styles.emptyContainer
+        }
+      >
+        <View
+          style={
+            styles.emptyIcon
+          }
+        >
           <Ionicons
-            name="wallet-outline"
+            name="people-outline"
             size={36}
             color="#9CA3AF"
           />
         </View>
 
-        <Text style={styles.emptyTitle}>
-          No salary records
+        <Text
+          style={
+            styles.emptyTitle
+          }
+        >
+          No staff found
         </Text>
 
-        <Text style={styles.emptyDescription}>
-          No salary has been generated for{" "}
-          {getMonthLabel(selectedMonth)}.
+        <Text
+          style={
+            styles.emptyDescription
+          }
+        >
+          No active staff members
+          are available.
         </Text>
       </View>
     );
@@ -634,272 +1463,413 @@ export default function SalaryScreen() {
 
   /*
   |--------------------------------------------------------------------------
-  | Header
+  | HEADER
   |--------------------------------------------------------------------------
   */
 
-  const header = useMemo(
-    () => (
-      <>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>
-              Salary
-            </Text>
-
-            <Text style={styles.headerSubtitle}>
-              Staff salary management
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            activeOpacity={0.8}
-            onPress={onRefresh}
-          >
-            <Ionicons
-              name="refresh-outline"
-              size={22}
-              color="#111827"
-            />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.monthSelector}>
-          <TouchableOpacity
-            style={styles.monthArrow}
-            onPress={() => changeMonth("prev")}
-          >
-            <Ionicons
-              name="chevron-back"
-              size={20}
-              color="#111827"
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.monthCenter}
-            onPress={() =>
-              setShowMonthPicker(true)
+  const header = (
+    <>
+      <View
+        style={styles.header}
+      >
+        <View>
+          <Text
+            style={
+              styles.headerTitle
             }
           >
-            <Ionicons
-              name="calendar-outline"
-              size={18}
-              color="#111827"
-            />
+            Salary
+          </Text>
 
-            <Text style={styles.monthText}>
-              {getMonthLabel(selectedMonth)}
-            </Text>
-
-            <Ionicons
-              name="chevron-down"
-              size={16}
-              color="#6B7280"
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.monthArrow}
-            onPress={() => changeMonth("next")}
+          <Text
+            style={
+              styles.headerSubtitle
+            }
           >
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color="#111827"
-            />
-          </TouchableOpacity>
+            Staff salary management
+          </Text>
         </View>
 
-        <View style={styles.summaryGrid}>
-          <SummaryCard
-            icon="people-outline"
-            label="Staff"
-            value={String(staffCount)}
-          />
-
-          <SummaryCard
-            icon="wallet-outline"
-            label="Total"
-            value={formatMoney(totals.netSalary)}
-          />
-
-          <SummaryCard
-            icon="checkmark-circle-outline"
-            label="Paid"
-            value={formatMoney(totals.paid)}
-          />
-
-          <SummaryCard
-            icon="time-outline"
-            label="Pending"
-            value={formatMoney(totals.pending)}
-          />
-        </View>
-
-        <View style={styles.searchContainer}>
+        <TouchableOpacity
+          style={
+            styles.headerIconButton
+          }
+          activeOpacity={0.8}
+          onPress={onRefresh}
+        >
           <Ionicons
-            name="search-outline"
+            name="refresh-outline"
+            size={22}
+            color="#111827"
+          />
+        </TouchableOpacity>
+      </View>
+
+      {/* MONTH */}
+
+      <View
+        style={
+          styles.monthSelector
+        }
+      >
+        <TouchableOpacity
+          style={
+            styles.monthArrow
+          }
+          onPress={() =>
+            changeMonth("prev")
+          }
+        >
+          <Ionicons
+            name="chevron-back"
             size={20}
-            color="#9CA3AF"
+            color="#111827"
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={
+            styles.monthCenter
+          }
+          onPress={() =>
+            setShowMonthPicker(
+              true
+            )
+          }
+        >
+          <Ionicons
+            name="calendar-outline"
+            size={18}
+            color="#111827"
           />
 
-          <TextInput
-            value={search}
-            onChangeText={(value) =>
-              dispatch(setSearch(value))
+          <Text
+            style={
+              styles.monthText
             }
-            placeholder="Search staff by name or phone"
-            placeholderTextColor="#9CA3AF"
-            style={styles.searchInput}
-          />
+          >
+            {getMonthLabel(
+              selectedMonth
+            )}
+          </Text>
 
-          {search.length > 0 && (
-            <TouchableOpacity
-              onPress={() => dispatch(setSearch(""))}
-            >
-              <Ionicons
-                name="close-circle"
-                size={20}
-                color="#9CA3AF"
-              />
-            </TouchableOpacity>
+          <Ionicons
+            name="chevron-down"
+            size={16}
+            color="#6B7280"
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={
+            styles.monthArrow
+          }
+          onPress={() =>
+            changeMonth("next")
+          }
+        >
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color="#111827"
+          />
+        </TouchableOpacity>
+      </View>
+
+      {/* SUMMARY */}
+
+      <View
+        style={
+          styles.summaryGrid
+        }
+      >
+        <SummaryCard
+          icon="people-outline"
+          label="Staff"
+          value={String(
+            staffCount
           )}
-        </View>
+        />
 
-        <View style={styles.filterRow}>
-          <FilterButton
-            label="All"
-            active={status === ""}
-            onPress={() => dispatch(setStatus(""))}
-          />
+        <SummaryCard
+          icon="wallet-outline"
+          label="Total"
+          value={formatMoney(
+            totalNet
+          )}
+        />
 
-          <FilterButton
-            label={`Pending ${pendingCount}`}
-            active={status === "PENDING"}
+        <SummaryCard
+          icon="checkmark-circle-outline"
+          label="Paid"
+          value={formatMoney(
+            totalPaid
+          )}
+        />
+
+        <SummaryCard
+          icon="time-outline"
+          label="Pending"
+          value={formatMoney(
+            totalPending
+          )}
+        />
+      </View>
+
+      {/* SEARCH */}
+
+      <View
+        style={
+          styles.searchContainer
+        }
+      >
+        <Ionicons
+          name="search-outline"
+          size={20}
+          color="#9CA3AF"
+        />
+
+        <TextInput
+          value={search}
+          onChangeText={(value) =>
+            dispatch(
+              setSearch(value)
+            )
+          }
+          placeholder="Search staff by name or phone"
+          placeholderTextColor="#9CA3AF"
+          style={
+            styles.searchInput
+          }
+        />
+
+        {search.length > 0 && (
+          <TouchableOpacity
             onPress={() =>
-              dispatch(setStatus("PENDING"))
+              dispatch(
+                setSearch("")
+              )
             }
-          />
-
-          <FilterButton
-            label={`Paid ${paidCount}`}
-            active={status === "PAID"}
-            onPress={() =>
-              dispatch(setStatus("PAID"))
-            }
-          />
-        </View>
-
-        {error && (
-          <View style={styles.errorBox}>
+          >
             <Ionicons
-              name="alert-circle-outline"
+              name="close-circle"
               size={20}
-              color="#B91C1C"
+              color="#9CA3AF"
             />
-
-            <Text style={styles.errorText}>
-              {error}
-            </Text>
-          </View>
+          </TouchableOpacity>
         )}
+      </View>
 
-        <Text style={styles.sectionTitle}>
-          Salary Details
-        </Text>
-      </>
-    ),
-    [
-      selectedMonth,
-      staffCount,
-      totals,
-      search,
-      status,
-      pendingCount,
-      paidCount,
-      error,
-      loading,
-      onRefresh,
-    ]
+      {/* FILTER */}
+
+      <View
+        style={styles.filterRow}
+      >
+        <FilterButton
+          label="All"
+          active={status === ""}
+          onPress={() =>
+            dispatch(
+              setStatus("")
+            )
+          }
+        />
+
+        <FilterButton
+          label={`Pending ${pendingCount}`}
+          active={
+            status === "PENDING"
+          }
+          onPress={() =>
+            dispatch(
+              setStatus(
+                "PENDING"
+              )
+            )
+          }
+        />
+
+        <FilterButton
+          label={`Paid ${paidCount}`}
+          active={
+            status === "PAID"
+          }
+          onPress={() =>
+            dispatch(
+              setStatus("PAID")
+            )
+          }
+        />
+      </View>
+
+      {error && (
+        <View
+          style={
+            styles.errorBox
+          }
+        >
+          <Ionicons
+            name="alert-circle-outline"
+            size={20}
+            color="#B91C1C"
+          />
+
+          <Text
+            style={
+              styles.errorText
+            }
+          >
+            {error}
+          </Text>
+        </View>
+      )}
+
+      <Text
+        style={
+          styles.sectionTitle
+        }
+      >
+        Salary Details
+      </Text>
+    </>
   );
 
+  /*
+  |--------------------------------------------------------------------------
+  | RETURN
+  |--------------------------------------------------------------------------
+  */
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView
+      style={styles.safeArea}
+    >
       <StatusBar
         barStyle="dark-content"
         backgroundColor="#FFFFFF"
       />
 
       <FlatList
-        data={salaries}
-        keyExtractor={(item) => item._id}
-        renderItem={renderSalary}
-        ListHeaderComponent={header}
-        ListEmptyComponent={renderEmpty}
+        data={filteredRows}
+        keyExtractor={(item) =>
+          item.key
+        }
+        renderItem={
+          renderSalary
+        }
+        ListHeaderComponent={
+          header
+        }
+        ListEmptyComponent={
+          renderEmpty
+        }
         contentContainerStyle={[
           styles.listContent,
-          salaries.length === 0 &&
+          filteredRows.length ===
+            0 &&
             styles.emptyListContent,
         ]}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
+            refreshing={
+              refreshing
+            }
+            onRefresh={
+              onRefresh
+            }
             tintColor="#111827"
           />
         }
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={
+          false
+        }
       />
 
-      {/* Month Picker */}
+      {/* =====================================================
+          MONTH MODAL
+      ===================================================== */}
+
       <Modal
-        visible={showMonthPicker}
+        visible={
+          showMonthPicker
+        }
         transparent
         animationType="fade"
         onRequestClose={() =>
-          setShowMonthPicker(false)
+          setShowMonthPicker(
+            false
+          )
         }
       >
         <Pressable
-          style={styles.modalOverlay}
+          style={
+            styles.modalOverlay
+          }
           onPress={() =>
-            setShowMonthPicker(false)
+            setShowMonthPicker(
+              false
+            )
           }
         >
           <Pressable
-            style={styles.monthModal}
+            style={
+              styles.monthModal
+            }
             onPress={(event) =>
               event.stopPropagation()
             }
           >
-            <Text style={styles.modalTitle}>
+            <Text
+              style={
+                styles.modalTitle
+              }
+            >
               Select Month
             </Text>
 
-            <Text style={styles.modalSubtitle}>
+            <Text
+              style={
+                styles.modalSubtitle
+              }
+            >
               Choose salary month
             </Text>
 
-            <View style={styles.monthModalGrid}>
+            <View
+              style={
+                styles.monthModalGrid
+              }
+            >
               {MONTH_NAMES.map(
-                (monthName, index) => {
-                  const currentYear =
+                (
+                  monthName,
+                  index
+                ) => {
+                  const year =
                     Number(
-                      selectedMonth.split("-")[0]
-                    ) || new Date().getFullYear();
+                      selectedMonth.split(
+                        "-"
+                      )[0]
+                    ) ||
+                    new Date().getFullYear();
 
-                  const monthValue = `${currentYear}-${String(
-                    index + 1
-                  ).padStart(2, "0")}`;
+                  const monthValue =
+                    `${year}-${String(
+                      index + 1
+                    ).padStart(
+                      2,
+                      "0"
+                    )}`;
 
                   const active =
-                    monthValue === selectedMonth;
+                    monthValue ===
+                    selectedMonth;
 
                   return (
                     <TouchableOpacity
-                      key={monthValue}
+                      key={
+                        monthValue
+                      }
                       style={[
                         styles.monthOption,
                         active &&
@@ -912,7 +1882,9 @@ export default function SalaryScreen() {
                           )
                         );
 
-                        setShowMonthPicker(false);
+                        setShowMonthPicker(
+                          false
+                        );
                       }}
                     >
                       <Text
@@ -922,7 +1894,10 @@ export default function SalaryScreen() {
                             styles.monthOptionTextActive,
                         ]}
                       >
-                        {monthName.slice(0, 3)}
+                        {monthName.slice(
+                          0,
+                          3
+                        )}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -931,12 +1906,20 @@ export default function SalaryScreen() {
             </View>
 
             <TouchableOpacity
-              style={styles.closeModalButton}
+              style={
+                styles.closeModalButton
+              }
               onPress={() =>
-                setShowMonthPicker(false)
+                setShowMonthPicker(
+                  false
+                )
               }
             >
-              <Text style={styles.closeModalText}>
+              <Text
+                style={
+                  styles.closeModalText
+                }
+              >
                 Close
               </Text>
             </TouchableOpacity>
@@ -944,35 +1927,75 @@ export default function SalaryScreen() {
         </Pressable>
       </Modal>
 
-      {/* Generate / Edit Salary */}
+      {/* =====================================================
+          GENERATE / EDIT SALARY MODAL
+      ===================================================== */}
+
       <Modal
-        visible={showGenerateModal}
+        visible={
+          showGenerateModal
+        }
         transparent
         animationType="slide"
-        onRequestClose={closeGenerateModal}
+        onRequestClose={
+          closeGenerateModal
+        }
       >
-        <View style={styles.bottomModalOverlay}>
-          <View style={styles.bottomModal}>
-            <View style={styles.modalHandle} />
+        <View
+          style={
+            styles.bottomModalOverlay
+          }
+        >
+          <View
+            style={
+              styles.bottomModal
+            }
+          >
+            <View
+              style={
+                styles.modalHandle
+              }
+            />
 
             <ScrollView
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={
+                false
+              }
               keyboardShouldPersistTaps="handled"
             >
-              <View style={styles.modalHeaderRow}>
+              <View
+                style={
+                  styles.modalHeaderRow
+                }
+              >
                 <View>
-                  <Text style={styles.modalTitle}>
-                    Salary Details
+                  <Text
+                    style={
+                      styles.modalTitle
+                    }
+                  >
+                    {selectedSalary
+                      ?.generated
+                      ? "Edit Salary"
+                      : "Generate Salary"}
                   </Text>
 
-                  <Text style={styles.modalSubtitle}>
-                    {selectedSalary?.stylist?.name ||
+                  <Text
+                    style={
+                      styles.modalSubtitle
+                    }
+                  >
+                    {selectedSalary
+                      ?.stylist
+                      ?.name ||
                       "Staff"}
                   </Text>
                 </View>
 
                 <TouchableOpacity
-                  onPress={closeGenerateModal}
+                  onPress={
+                    closeGenerateModal
+                  }
                 >
                   <Ionicons
                     name="close-circle-outline"
@@ -982,139 +2005,222 @@ export default function SalaryScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.readOnlySalaryBox}>
+              {/* BASIC */}
+
+              <View
+                style={
+                  styles.readOnlySalaryBox
+                }
+              >
                 <View>
-                  <Text style={styles.readOnlyLabel}>
+                  <Text
+                    style={
+                      styles.readOnlyLabel
+                    }
+                  >
                     Basic Salary
                   </Text>
 
-                  <Text style={styles.readOnlyValue}>
+                  <Text
+                    style={
+                      styles.readOnlyValue
+                    }
+                  >
                     {formatMoney(
-                      selectedSalary?.basicSalary
+                      selectedSalary
+                        ?.basicSalary
                     )}
                   </Text>
                 </View>
 
                 <View>
-                  <Text style={styles.readOnlyLabel}>
-                    Overtime
+                  <Text
+                    style={
+                      styles.readOnlyLabel
+                    }
+                  >
+                    Monthly Salary
                   </Text>
 
-                  <Text style={styles.readOnlyValue}>
+                  <Text
+                    style={
+                      styles.readOnlyValue
+                    }
+                  >
                     {formatMoney(
-                      selectedSalary?.overtimeSalary
+                      selectedSalary
+                        ?.stylist
+                        ?.monthlySalary
                     )}
                   </Text>
                 </View>
               </View>
 
-              <InputField
+              <SalaryInput
                 label="Commission"
-                value={commission}
-                onChangeText={setCommission}
+                value={
+                  commission
+                }
+                onChangeText={
+                  setCommission
+                }
                 placeholder="0"
-                keyboardType="numeric"
               />
 
-              <InputField
+              <SalaryInput
                 label="Bonus"
                 value={bonus}
-                onChangeText={setBonus}
+                onChangeText={
+                  setBonus
+                }
                 placeholder="0"
-                keyboardType="numeric"
               />
 
-              <InputField
+              <SalaryInput
                 label="Advance"
-                value={advance}
-                onChangeText={setAdvance}
+                value={
+                  advance
+                }
+                onChangeText={
+                  setAdvance
+                }
                 placeholder="0"
-                keyboardType="numeric"
               />
 
-              <InputField
+              <SalaryInput
                 label="Deduction"
-                value={deduction}
-                onChangeText={setDeduction}
+                value={
+                  deduction
+                }
+                onChangeText={
+                  setDeduction
+                }
                 placeholder="0"
-                keyboardType="numeric"
               />
 
-              <InputField
-                label="Notes"
+              <Text
+                style={
+                  styles.inputLabel
+                }
+              >
+                Notes
+              </Text>
+
+              <TextInput
                 value={notes}
-                onChangeText={setNotes}
+                onChangeText={
+                  setNotes
+                }
                 placeholder="Optional notes"
+                placeholderTextColor="#9CA3AF"
                 multiline
+                style={
+                  styles.notesInput
+                }
               />
 
               <TouchableOpacity
-                style={[
-                  styles.primaryModalButton,
-                  generating &&
-                    styles.disabledButton,
-                ]}
-                disabled={generating}
-                onPress={handleGenerateSalary}
+                activeOpacity={0.85}
+                style={
+                  styles.generateButton
+                }
+                onPress={
+                  handleGenerateSalary
+                }
+                disabled={
+                  generating
+                }
               >
                 {generating ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator
+                    color="#FFFFFF"
+                  />
                 ) : (
                   <>
                     <Ionicons
-                      name="save-outline"
+                      name="calculator-outline"
                       size={20}
                       color="#FFFFFF"
                     />
 
                     <Text
                       style={
-                        styles.primaryModalButtonText
+                        styles.generateButtonText
                       }
                     >
-                      Generate Salary
+                      {selectedSalary
+                        ?.generated
+                        ? "Update Salary"
+                        : "Generate Salary"}
                     </Text>
                   </>
                 )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.cancelModalButton}
-                onPress={closeGenerateModal}
-              >
-                <Text style={styles.cancelModalText}>
-                  Cancel
-                </Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
         </View>
       </Modal>
 
-      {/* Payment Modal */}
+      {/* =====================================================
+          PAYMENT MODAL
+      ===================================================== */}
+
       <Modal
-        visible={showPaymentModal}
+        visible={
+          showPaymentModal
+        }
         transparent
         animationType="slide"
-        onRequestClose={closePaymentModal}
+        onRequestClose={
+          closePaymentModal
+        }
       >
-        <View style={styles.bottomModalOverlay}>
-          <View style={styles.bottomModal}>
-            <View style={styles.modalHandle} />
+        <View
+          style={
+            styles.bottomModalOverlay
+          }
+        >
+          <View
+            style={
+              styles.paymentModal
+            }
+          >
+            <View
+              style={
+                styles.modalHandle
+              }
+            />
 
-            <View style={styles.modalHeaderRow}>
+            <View
+              style={
+                styles.modalHeaderRow
+              }
+            >
               <View>
-                <Text style={styles.modalTitle}>
-                  Confirm Payment
+                <Text
+                  style={
+                    styles.modalTitle
+                  }
+                >
+                  Mark Salary Paid
                 </Text>
 
-                <Text style={styles.modalSubtitle}>
-                  {selectedSalary?.stylist?.name}
+                <Text
+                  style={
+                    styles.modalSubtitle
+                  }
+                >
+                  {selectedSalary
+                    ?.stylist
+                    ?.name ||
+                    "Staff"}
                 </Text>
               </View>
 
               <TouchableOpacity
-                onPress={closePaymentModal}
+                onPress={
+                  closePaymentModal
+                }
               >
                 <Ionicons
                   name="close-circle-outline"
@@ -1124,112 +2230,115 @@ export default function SalaryScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.paymentAmountBox}>
-              <Text style={styles.paymentAmountLabel}>
+            <View
+              style={
+                styles.paymentAmountBox
+              }
+            >
+              <Text
+                style={
+                  styles.paymentAmountLabel
+                }
+              >
                 Net Salary
               </Text>
 
-              <Text style={styles.paymentAmount}>
+              <Text
+                style={
+                  styles.paymentAmount
+                }
+              >
                 {formatMoney(
-                  selectedSalary?.netSalary
+                  selectedSalary
+                    ?.netSalary
                 )}
               </Text>
             </View>
 
-            <Text style={styles.inputLabel}>
+            <Text
+              style={
+                styles.inputLabel
+              }
+            >
               Payment Method
             </Text>
 
-            <View style={styles.paymentMethodGrid}>
-              {PAYMENT_METHODS.map((method) => {
-                const active =
-                  selectedPaymentMethod === method;
+            <View
+              style={
+                styles.paymentMethods
+              }
+            >
+              {PAYMENT_METHODS.map(
+                (method) => {
+                  const active =
+                    selectedPaymentMethod ===
+                    method;
 
-                return (
-                  <TouchableOpacity
-                    key={method}
-                    style={[
-                      styles.paymentMethod,
-                      active &&
-                        styles.paymentMethodActive,
-                    ]}
-                    onPress={() =>
-                      setSelectedPaymentMethod(
+                  return (
+                    <TouchableOpacity
+                      key={
                         method
-                      )
-                    }
-                  >
-                    <Ionicons
-                      name={
-                        method === "CASH"
-                          ? "cash-outline"
-                          : method === "UPI"
-                          ? "phone-portrait-outline"
-                          : method ===
-                            "BANK_TRANSFER"
-                          ? "business-outline"
-                          : "card-outline"
                       }
-                      size={20}
-                      color={
-                        active
-                          ? "#FFFFFF"
-                          : "#374151"
-                      }
-                    />
-
-                    <Text
                       style={[
-                        styles.paymentMethodText,
+                        styles.paymentMethodButton,
                         active &&
-                          styles.paymentMethodTextActive,
+                          styles.paymentMethodActive,
                       ]}
+                      onPress={() =>
+                        setSelectedPaymentMethod(
+                          method
+                        )
+                      }
                     >
-                      {method === "BANK_TRANSFER"
-                        ? "Bank"
-                        : method}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+                      <Text
+                        style={[
+                          styles.paymentMethodText,
+                          active &&
+                            styles.paymentMethodTextActive,
+                        ]}
+                      >
+                        {method.replace(
+                          "_",
+                          " "
+                        )}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }
+              )}
             </View>
 
             <TouchableOpacity
-              style={[
-                styles.primaryModalButton,
-                paying && styles.disabledButton,
-              ]}
+              activeOpacity={0.85}
+              style={
+                styles.payConfirmButton
+              }
+              onPress={
+                handleMarkPaid
+              }
               disabled={paying}
-              onPress={handleMarkPaid}
             >
               {paying ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator
+                  color="#FFFFFF"
+                />
               ) : (
                 <>
                   <Ionicons
                     name="checkmark-circle-outline"
-                    size={20}
+                    size={21}
                     color="#FFFFFF"
                   />
 
                   <Text
                     style={
-                      styles.primaryModalButtonText
+                      styles.payConfirmText
                     }
                   >
                     Confirm Payment
                   </Text>
                 </>
               )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.cancelModalButton}
-              onPress={closePaymentModal}
-            >
-              <Text style={styles.cancelModalText}>
-                Cancel
-              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1240,7 +2349,7 @@ export default function SalaryScreen() {
 
 /*
 |--------------------------------------------------------------------------
-| Components
+| COMPONENTS
 |--------------------------------------------------------------------------
 */
 
@@ -1249,26 +2358,40 @@ function SummaryCard({
   label,
   value,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: any;
   label: string;
   value: string;
 }) {
   return (
-    <View style={styles.summaryCard}>
-      <View style={styles.summaryIcon}>
+    <View
+      style={
+        styles.summaryCard
+      }
+    >
+      <View
+        style={
+          styles.summaryIcon
+        }
+      >
         <Ionicons
           name={icon}
-          size={18}
+          size={19}
           color="#111827"
         />
       </View>
 
-      <Text style={styles.summaryLabel}>
+      <Text
+        style={
+          styles.summaryLabel
+        }
+      >
         {label}
       </Text>
 
       <Text
-        style={styles.summaryValue}
+        style={
+          styles.summaryValue
+        }
         numberOfLines={1}
       >
         {value}
@@ -1285,12 +2408,24 @@ function SalaryAmount({
   value: number;
 }) {
   return (
-    <View style={styles.salaryAmount}>
-      <Text style={styles.amountLabel}>
+    <View
+      style={
+        styles.salaryAmount
+      }
+    >
+      <Text
+        style={
+          styles.salaryAmountLabel
+        }
+      >
         {label}
       </Text>
 
-      <Text style={styles.amountValue}>
+      <Text
+        style={
+          styles.salaryAmountValue
+        }
+      >
         {formatMoney(value)}
       </Text>
     </View>
@@ -1310,7 +2445,8 @@ function FilterButton({
     <TouchableOpacity
       style={[
         styles.filterButton,
-        active && styles.filterButtonActive,
+        active &&
+          styles.filterButtonActive,
       ]}
       onPress={onPress}
     >
@@ -1327,41 +2463,42 @@ function FilterButton({
   );
 }
 
-function InputField({
+function SalaryInput({
   label,
   value,
   onChangeText,
   placeholder,
-  keyboardType,
-  multiline,
 }: {
   label: string;
   value: string;
-  onChangeText: (value: string) => void;
-  placeholder?: string;
-  keyboardType?: "default" | "numeric" | "decimal-pad";
-  multiline?: boolean;
+  onChangeText: (
+    value: string
+  ) => void;
+  placeholder: string;
 }) {
   return (
-    <View style={styles.inputContainer}>
-      <Text style={styles.inputLabel}>
+    <View>
+      <Text
+        style={
+          styles.inputLabel
+        }
+      >
         {label}
       </Text>
 
       <TextInput
         value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
-        keyboardType={keyboardType || "default"}
-        multiline={multiline}
-        textAlignVertical={
-          multiline ? "top" : "center"
+        onChangeText={
+          onChangeText
         }
-        style={[
-          styles.input,
-          multiline && styles.multilineInput,
-        ]}
+        placeholder={
+          placeholder
+        }
+        placeholderTextColor="#9CA3AF"
+        keyboardType="numeric"
+        style={
+          styles.textInput
+        }
       />
     </View>
   );
@@ -1369,716 +2506,785 @@ function InputField({
 
 /*
 |--------------------------------------------------------------------------
-| Styles
+| STYLES
 |--------------------------------------------------------------------------
 */
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-  },
-
-  listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 40,
-  },
-
-  emptyListContent: {
-    flexGrow: 1,
-  },
-
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 14,
-  },
-
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#111827",
-  },
-
-  headerSubtitle: {
-    marginTop: 3,
-    fontSize: 13,
-    color: "#6B7280",
-  },
-
-  headerIconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-
-  monthSelector: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 14,
-    overflow: "hidden",
-  },
-
-  monthArrow: {
-    width: 48,
-    height: 52,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  monthCenter: {
-    flex: 1,
-    height: 52,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-
-  monthText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
-  },
-
-  summaryGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 14,
-  },
-
-  summaryCard: {
-    width: "48%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-
-  summaryIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-
-  summaryLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginBottom: 3,
-  },
-
-  summaryValue: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#111827",
-  },
-
-  searchContainer: {
-    height: 50,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    marginBottom: 12,
-  },
-
-  searchInput: {
-    flex: 1,
-    marginLeft: 9,
-    fontSize: 14,
-    color: "#111827",
-  },
-
-  filterRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 18,
-  },
-
-  filterButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-
-  filterButtonActive: {
-    backgroundColor: "#111827",
-    borderColor: "#111827",
-  },
-
-  filterButtonText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#6B7280",
-  },
-
-  filterButtonTextActive: {
-    color: "#FFFFFF",
-  },
-
-  errorBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
-    gap: 8,
-  },
-
-  errorText: {
-    flex: 1,
-    color: "#B91C1C",
-    fontSize: 13,
-  },
-
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#111827",
-    marginBottom: 10,
-  },
-
-  salaryCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-
-  salaryTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  staffInfo: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 10,
-  },
-
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 11,
-  },
-
-  avatarText: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#111827",
-  },
-
-  staffTextContainer: {
-    flex: 1,
-  },
-
-  staffName: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#111827",
-  },
-
-  staffSpecialization: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 2,
-  },
-
-  staffPhone: {
-    fontSize: 11,
-    color: "#9CA3AF",
-    marginTop: 2,
-  },
-
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 5,
-  },
-
-  paidBadge: {
-    backgroundColor: "#ECFDF5",
-  },
-
-  pendingBadge: {
-    backgroundColor: "#FFFBEB",
-  },
-
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-
-  paidDot: {
-    backgroundColor: "#059669",
-  },
-
-  pendingDot: {
-    backgroundColor: "#D97706",
-  },
-
-  statusText: {
-    fontSize: 10,
-    fontWeight: "800",
-  },
-
-  paidText: {
-    color: "#047857",
-  },
-
-  pendingText: {
-    color: "#B45309",
-  },
-
-  divider: {
-    height: 1,
-    backgroundColor: "#F1F5F9",
-    marginVertical: 14,
-  },
-
-  salaryGrid: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-
-  salaryAmount: {
-    flex: 1,
-  },
-
-  amountLabel: {
-    fontSize: 11,
-    color: "#9CA3AF",
-    marginBottom: 4,
-  },
-
-  amountValue: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#374151",
-  },
-
-  secondaryRow: {
-    flexDirection: "row",
-    backgroundColor: "#F8FAFC",
-    borderRadius: 12,
-    padding: 10,
-    marginTop: 12,
-  },
-
-  secondaryItem: {
-    flex: 1,
-  },
-
-  secondaryLabel: {
-    fontSize: 10,
-    color: "#9CA3AF",
-    marginBottom: 3,
-  },
-
-  deductionValue: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#DC2626",
-  },
-
-  grossValue: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#374151",
-  },
-
-  netSalaryRow: {
-    marginTop: 14,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  netLabel: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#111827",
-  },
-
-  netSubText: {
-    fontSize: 11,
-    color: "#9CA3AF",
-    marginTop: 3,
-  },
-
-  netSalary: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: "#111827",
-  },
-
-  actionRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 14,
-  },
-
-  editButton: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 12,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
-  },
-
-  editButtonText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#111827",
-  },
-
-  payButton: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 12,
-    backgroundColor: "#111827",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
-  },
-
-  payButtonText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-
-  pendingButton: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 12,
-    backgroundColor: "#FEF3C7",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
-  },
-
-  pendingButtonText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#92400E",
-  },
-
-  emptyContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 70,
-  },
-
-  emptyIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 24,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
-  },
-
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#111827",
-  },
-
-  emptyDescription: {
-    textAlign: "center",
-    fontSize: 13,
-    color: "#9CA3AF",
-    marginTop: 6,
-    paddingHorizontal: 30,
-  },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "center",
-    padding: 20,
-  },
-
-  monthModal: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 20,
-  },
-
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#111827",
-  },
-
-  modalSubtitle: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginTop: 3,
-  },
-
-  monthModalGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 9,
-    marginTop: 20,
-  },
-
-  monthOption: {
-    width: "30%",
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: "#F8FAFC",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-
-  monthOptionActive: {
-    backgroundColor: "#111827",
-    borderColor: "#111827",
-  },
-
-  monthOptionText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#374151",
-  },
-
-  monthOptionTextActive: {
-    color: "#FFFFFF",
-  },
-
-  closeModalButton: {
-    marginTop: 18,
-    height: 46,
-    borderRadius: 12,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  closeModalText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-  },
-
-  bottomModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "flex-end",
-  },
-
-  bottomModal: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 30,
-    maxHeight: "90%",
-  },
-
-  modalHandle: {
-    width: 42,
-    height: 4,
-    borderRadius: 4,
-    backgroundColor: "#D1D5DB",
-    alignSelf: "center",
-    marginBottom: 18,
-  },
-
-  modalHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 20,
-  },
-
-  readOnlySalaryBox: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    backgroundColor: "#F8FAFC",
-    borderRadius: 14,
-    padding: 15,
-    marginBottom: 18,
-  },
-
-  readOnlyLabel: {
-    fontSize: 11,
-    color: "#9CA3AF",
-    marginBottom: 4,
-  },
-
-  readOnlyValue: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#111827",
-  },
-
-  inputContainer: {
-    marginBottom: 15,
-  },
-
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#374151",
-    marginBottom: 7,
-  },
-
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    color: "#111827",
-    backgroundColor: "#FFFFFF",
-    fontSize: 14,
-  },
-
-  multilineInput: {
-    height: 90,
-    paddingTop: 13,
-  },
-
-  primaryModalButton: {
-    height: 50,
-    borderRadius: 14,
-    backgroundColor: "#111827",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 8,
-  },
-
-  primaryModalButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "800",
-  },
-
-  disabledButton: {
-    opacity: 0.6,
-  },
-
-  cancelModalButton: {
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 10,
-  },
-
-  cancelModalText: {
-    color: "#374151",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-
-  paymentAmountBox: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    padding: 18,
-    alignItems: "center",
-    marginBottom: 20,
-  },
-
-  paymentAmountLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
-
-  paymentAmount: {
-    fontSize: 30,
-    fontWeight: "900",
-    color: "#111827",
-    marginTop: 4,
-  },
-
-  paymentMethodGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 10,
-  },
-
-  paymentMethod: {
-    width: "48%",
-    minHeight: 48,
-    borderRadius: 12,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 7,
-  },
-
-  paymentMethodActive: {
-    backgroundColor: "#111827",
-  },
-
-  paymentMethodText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#374151",
-  },
-
-  paymentMethodTextActive: {
-    color: "#FFFFFF",
-  },
-});
+const styles =
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor:
+        "#F8FAFC",
+    },
+
+    listContent: {
+      padding: 16,
+      paddingBottom: 40,
+    },
+
+    emptyListContent: {
+      flexGrow: 1,
+    },
+
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "space-between",
+      marginBottom: 16,
+    },
+
+    headerTitle: {
+      fontSize: 28,
+      fontWeight: "800",
+      color: "#111827",
+    },
+
+    headerSubtitle: {
+      marginTop: 3,
+      fontSize: 13,
+      color: "#6B7280",
+    },
+
+    headerIconButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor:
+        "#FFFFFF",
+      alignItems: "center",
+      justifyContent:
+        "center",
+      borderWidth: 1,
+      borderColor:
+        "#E5E7EB",
+    },
+
+    monthSelector: {
+      height: 52,
+      borderRadius: 16,
+      backgroundColor:
+        "#FFFFFF",
+      borderWidth: 1,
+      borderColor:
+        "#E5E7EB",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "space-between",
+      marginBottom: 14,
+    },
+
+    monthArrow: {
+      width: 52,
+      height: 52,
+      alignItems: "center",
+      justifyContent:
+        "center",
+    },
+
+    monthCenter: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "center",
+      gap: 8,
+    },
+
+    monthText: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: "#111827",
+    },
+
+    summaryGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+      marginBottom: 14,
+    },
+
+    summaryCard: {
+      width: "48%",
+      minHeight: 106,
+      backgroundColor:
+        "#FFFFFF",
+      borderRadius: 18,
+      padding: 14,
+      borderWidth: 1,
+      borderColor:
+        "#E5E7EB",
+    },
+
+    summaryIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 11,
+      backgroundColor:
+        "#F3F4F6",
+      alignItems: "center",
+      justifyContent:
+        "center",
+      marginBottom: 8,
+    },
+
+    summaryLabel: {
+      fontSize: 12,
+      color: "#6B7280",
+    },
+
+    summaryValue: {
+      marginTop: 4,
+      fontSize: 18,
+      fontWeight: "800",
+      color: "#111827",
+    },
+
+    searchContainer: {
+      height: 50,
+      borderRadius: 15,
+      backgroundColor:
+        "#FFFFFF",
+      borderWidth: 1,
+      borderColor:
+        "#E5E7EB",
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      marginBottom: 12,
+    },
+
+    searchInput: {
+      flex: 1,
+      marginLeft: 10,
+      fontSize: 14,
+      color: "#111827",
+    },
+
+    filterRow: {
+      flexDirection: "row",
+      gap: 8,
+      marginBottom: 18,
+    },
+
+    filterButton: {
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+      borderRadius: 20,
+      backgroundColor:
+        "#FFFFFF",
+      borderWidth: 1,
+      borderColor:
+        "#E5E7EB",
+    },
+
+    filterButtonActive: {
+      backgroundColor:
+        "#111827",
+      borderColor:
+        "#111827",
+    },
+
+    filterButtonText: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: "#6B7280",
+    },
+
+    filterButtonTextActive: {
+      color: "#FFFFFF",
+    },
+
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: "800",
+      color: "#111827",
+      marginBottom: 12,
+    },
+
+    salaryCard: {
+      backgroundColor:
+        "#FFFFFF",
+      borderRadius: 20,
+      padding: 16,
+      marginBottom: 14,
+      borderWidth: 1,
+      borderColor:
+        "#E5E7EB",
+    },
+
+    salaryTopRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "space-between",
+    },
+
+    staffInfo: {
+      flexDirection: "row",
+      alignItems: "center",
+      flex: 1,
+      marginRight: 10,
+    },
+
+    avatar: {
+      width: 48,
+      height: 48,
+      borderRadius: 16,
+      backgroundColor:
+        "#F3F4F6",
+      alignItems: "center",
+      justifyContent:
+        "center",
+      marginRight: 11,
+    },
+
+    avatarText: {
+      fontSize: 15,
+      fontWeight: "800",
+      color: "#111827",
+    },
+
+    staffTextContainer: {
+      flex: 1,
+    },
+
+    staffName: {
+      fontSize: 15,
+      fontWeight: "800",
+      color: "#111827",
+    },
+
+    staffSpecialization: {
+      marginTop: 3,
+      fontSize: 12,
+      color: "#6B7280",
+    },
+
+    staffPhone: {
+      marginTop: 2,
+      fontSize: 11,
+      color: "#9CA3AF",
+    },
+
+    statusBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 9,
+      paddingVertical: 6,
+      borderRadius: 20,
+    },
+
+    paidBadge: {
+      backgroundColor:
+        "#ECFDF5",
+    },
+
+    pendingBadge: {
+      backgroundColor:
+        "#FFFBEB",
+    },
+
+    statusDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      marginRight: 5,
+    },
+
+    paidDot: {
+      backgroundColor:
+        "#10B981",
+    },
+
+    pendingDot: {
+      backgroundColor:
+        "#F59E0B",
+    },
+
+    statusText: {
+      fontSize: 9,
+      fontWeight: "800",
+    },
+
+    paidText: {
+      color: "#047857",
+    },
+
+    pendingText: {
+      color: "#92400E",
+    },
+
+    divider: {
+      height: 1,
+      backgroundColor:
+        "#F1F5F9",
+      marginVertical: 14,
+    },
+
+    salaryGrid: {
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+    },
+
+    salaryAmount: {
+      flex: 1,
+    },
+
+    salaryAmountLabel: {
+      fontSize: 11,
+      color: "#9CA3AF",
+      marginBottom: 4,
+    },
+
+    salaryAmountValue: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: "#111827",
+    },
+
+    secondaryRow: {
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+      marginTop: 16,
+    },
+
+    secondaryItem: {
+      flex: 1,
+    },
+
+    secondaryLabel: {
+      fontSize: 11,
+      color: "#9CA3AF",
+      marginBottom: 4,
+    },
+
+    deductionValue: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: "#DC2626",
+    },
+
+    grossValue: {
+      fontSize: 12,
+      fontWeight: "800",
+      color: "#111827",
+    },
+
+    netSalaryRow: {
+      marginTop: 16,
+      padding: 14,
+      borderRadius: 15,
+      backgroundColor:
+        "#F8FAFC",
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+      alignItems: "center",
+    },
+
+    netLabel: {
+      fontSize: 13,
+      fontWeight: "800",
+      color: "#111827",
+    },
+
+    netSubText: {
+      marginTop: 3,
+      fontSize: 10,
+      color: "#9CA3AF",
+    },
+
+    netSalary: {
+      fontSize: 19,
+      fontWeight: "900",
+      color: "#111827",
+    },
+
+    actionRow: {
+      flexDirection: "row",
+      gap: 9,
+      marginTop: 14,
+    },
+
+    editButton: {
+      flex: 1,
+      height: 44,
+      borderRadius: 13,
+      backgroundColor:
+        "#F3F4F6",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "center",
+      gap: 7,
+    },
+
+    editButtonText: {
+      fontSize: 12,
+      fontWeight: "800",
+      color: "#111827",
+    },
+
+    payButton: {
+      flex: 1,
+      height: 44,
+      borderRadius: 13,
+      backgroundColor:
+        "#111827",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "center",
+      gap: 7,
+    },
+
+    payButtonText: {
+      fontSize: 12,
+      fontWeight: "800",
+      color: "#FFFFFF",
+    },
+
+    pendingButton: {
+      flex: 1,
+      height: 44,
+      borderRadius: 13,
+      backgroundColor:
+        "#FEF3C7",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "center",
+      gap: 7,
+    },
+
+    pendingButtonText: {
+      fontSize: 12,
+      fontWeight: "800",
+      color: "#92400E",
+    },
+
+    emptyContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent:
+        "center",
+      paddingVertical: 80,
+    },
+
+    emptyIcon: {
+      width: 72,
+      height: 72,
+      borderRadius: 24,
+      backgroundColor:
+        "#F3F4F6",
+      alignItems: "center",
+      justifyContent:
+        "center",
+      marginBottom: 14,
+    },
+
+    emptyTitle: {
+      fontSize: 17,
+      fontWeight: "800",
+      color: "#111827",
+    },
+
+    emptyDescription: {
+      marginTop: 6,
+      fontSize: 13,
+      color: "#9CA3AF",
+      textAlign: "center",
+    },
+
+    errorBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor:
+        "#FEF2F2",
+      borderRadius: 13,
+      padding: 12,
+      marginBottom: 14,
+      gap: 8,
+    },
+
+    errorText: {
+      flex: 1,
+      color: "#B91C1C",
+      fontSize: 12,
+      fontWeight: "600",
+    },
+
+    modalOverlay: {
+      flex: 1,
+      backgroundColor:
+        "rgba(0,0,0,0.35)",
+      alignItems: "center",
+      justifyContent:
+        "center",
+      padding: 20,
+    },
+
+    monthModal: {
+      width: "100%",
+      backgroundColor:
+        "#FFFFFF",
+      borderRadius: 24,
+      padding: 20,
+    },
+
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: "#111827",
+    },
+
+    modalSubtitle: {
+      marginTop: 4,
+      fontSize: 12,
+      color: "#9CA3AF",
+    },
+
+    monthModalGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+      marginTop: 20,
+    },
+
+    monthOption: {
+      width: "22%",
+      paddingVertical: 13,
+      borderRadius: 12,
+      backgroundColor:
+        "#F3F4F6",
+      alignItems: "center",
+    },
+
+    monthOptionActive: {
+      backgroundColor:
+        "#111827",
+    },
+
+    monthOptionText: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: "#374151",
+    },
+
+    monthOptionTextActive: {
+      color: "#FFFFFF",
+    },
+
+    closeModalButton: {
+      height: 46,
+      borderRadius: 13,
+      backgroundColor:
+        "#F3F4F6",
+      alignItems: "center",
+      justifyContent:
+        "center",
+      marginTop: 18,
+    },
+
+    closeModalText: {
+      fontSize: 13,
+      fontWeight: "800",
+      color: "#111827",
+    },
+
+    bottomModalOverlay: {
+      flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor:
+        "rgba(0,0,0,0.35)",
+    },
+
+    bottomModal: {
+      maxHeight: "88%",
+      backgroundColor:
+        "#FFFFFF",
+      borderTopLeftRadius: 26,
+      borderTopRightRadius: 26,
+      padding: 20,
+      paddingBottom: 30,
+    },
+
+    paymentModal: {
+      backgroundColor:
+        "#FFFFFF",
+      borderTopLeftRadius: 26,
+      borderTopRightRadius: 26,
+      padding: 20,
+      paddingBottom: 30,
+    },
+
+    modalHandle: {
+      width: 42,
+      height: 5,
+      borderRadius: 4,
+      backgroundColor:
+        "#D1D5DB",
+      alignSelf: "center",
+      marginBottom: 18,
+    },
+
+    modalHeaderRow: {
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+      alignItems: "center",
+      marginBottom: 20,
+    },
+
+    readOnlySalaryBox: {
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+      backgroundColor:
+        "#F8FAFC",
+      padding: 15,
+      borderRadius: 15,
+      marginBottom: 18,
+    },
+
+    readOnlyLabel: {
+      fontSize: 11,
+      color: "#9CA3AF",
+    },
+
+    readOnlyValue: {
+      marginTop: 4,
+      fontSize: 16,
+      fontWeight: "800",
+      color: "#111827",
+    },
+
+    inputLabel: {
+      fontSize: 12,
+      fontWeight: "800",
+      color: "#374151",
+      marginBottom: 7,
+      marginTop: 5,
+    },
+
+    textInput: {
+      height: 48,
+      borderRadius: 13,
+      borderWidth: 1,
+      borderColor:
+        "#E5E7EB",
+      paddingHorizontal: 14,
+      fontSize: 14,
+      color: "#111827",
+      marginBottom: 10,
+      backgroundColor:
+        "#FFFFFF",
+    },
+
+    notesInput: {
+      minHeight: 85,
+      borderRadius: 13,
+      borderWidth: 1,
+      borderColor:
+        "#E5E7EB",
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 14,
+      color: "#111827",
+      textAlignVertical: "top",
+      marginBottom: 15,
+    },
+
+    generateButton: {
+      height: 50,
+      borderRadius: 14,
+      backgroundColor:
+        "#111827",
+      alignItems: "center",
+      justifyContent:
+        "center",
+      flexDirection: "row",
+      gap: 8,
+      marginTop: 5,
+    },
+
+    generateButtonText: {
+      fontSize: 14,
+      fontWeight: "800",
+      color: "#FFFFFF",
+    },
+
+    paymentAmountBox: {
+      backgroundColor:
+        "#F8FAFC",
+      borderRadius: 16,
+      padding: 18,
+      alignItems: "center",
+      marginBottom: 20,
+    },
+
+    paymentAmountLabel: {
+      fontSize: 12,
+      color: "#6B7280",
+    },
+
+    paymentAmount: {
+      marginTop: 4,
+      fontSize: 28,
+      fontWeight: "900",
+      color: "#111827",
+    },
+
+    paymentMethods: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 9,
+      marginBottom: 18,
+    },
+
+    paymentMethodButton: {
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      borderRadius: 12,
+      backgroundColor:
+        "#F3F4F6",
+    },
+
+    paymentMethodActive: {
+      backgroundColor:
+        "#111827",
+    },
+
+    paymentMethodText: {
+      fontSize: 11,
+      fontWeight: "800",
+      color: "#6B7280",
+    },
+
+    paymentMethodTextActive: {
+      color: "#FFFFFF",
+    },
+
+    payConfirmButton: {
+      height: 50,
+      borderRadius: 14,
+      backgroundColor:
+        "#111827",
+      alignItems: "center",
+      justifyContent:
+        "center",
+      flexDirection: "row",
+      gap: 8,
+    },
+
+    payConfirmText: {
+      fontSize: 14,
+      fontWeight: "800",
+      color: "#FFFFFF",
+    },
+  });

@@ -248,6 +248,14 @@ export default function MoreScreen() {
 />
 
 <Divider />
+<MenuItem
+  icon="₹"
+  title="Salary"
+  subtitle="Manage staff salary & payments"
+  onPress={() => router.push("/salary")}
+/>
+
+<Divider />
 
             <MenuItem
               icon="🔐"
