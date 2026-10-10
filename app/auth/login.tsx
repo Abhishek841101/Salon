@@ -1,4 +1,6 @@
+
 import React, { useState } from "react";
+
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -7,25 +9,27 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
+  TextInput,Image,
   View,
 } from "react-native";
+
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useDispatch, useSelector } from "react-redux";
-
-import { loginAdmin, clearAuthError } from "../../src/features/auth/authSlice";
+import Logo from "../../assets/images/logo.png";
+import {
+  loginAdmin,
+  clearAuthError,
+} from "../../src/features/auth/authSlice";
 
 export default function LoginScreen() {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<any>();
 
-  const {
-    loading,
-    error,
-    isAuthenticated,
-  } = useSelector((state) => state.auth);
+  const { loading, error } = useSelector(
+    (state: any) => state.auth
+  );
 
-  const [phone, setPhone] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
@@ -34,7 +38,9 @@ export default function LoginScreen() {
   // ========================================
 
   const handleLogin = async () => {
-    if (!phone.trim()) {
+    const value = identifier.trim();
+
+    if (!value) {
       return;
     }
 
@@ -44,16 +50,107 @@ export default function LoginScreen() {
 
     dispatch(clearAuthError());
 
+    // ----------------------------------------
+    // PHONE OR EMAIL
+    // ----------------------------------------
+
+    const isEmail = value.includes("@");
+
+    const loginPayload = isEmail
+      ? {
+          email: value.toLowerCase(),
+          password,
+        }
+      : {
+          phone: value,
+          password,
+        };
+
+    // ----------------------------------------
+    // API LOGIN
+    // ----------------------------------------
+
     const result = await dispatch(
-      loginAdmin({
-        phone: phone.trim(),
-        password,
-      })
+      loginAdmin(loginPayload)
     );
 
-    if (loginAdmin.fulfilled.match(result)) {
-      router.replace("/home");
+    if (!loginAdmin.fulfilled.match(result)) {
+      return;
     }
+
+    // ----------------------------------------
+    // GET USER FROM LOGIN RESPONSE
+    // ----------------------------------------
+
+    const user = result.payload?.user;
+
+    if (!user) {
+      return;
+    }
+
+    // ----------------------------------------
+    // SUPER ADMIN
+    // ----------------------------------------
+
+    if (user.role === "superadmin") {
+      router.replace("/superadmin");
+      return;
+    }
+
+    // ----------------------------------------
+    // ADMIN / OWNER
+    // ----------------------------------------
+
+    if (
+      user.role === "admin" ||
+      user.role === "owner"
+    ) {
+      const subscription = user.subscription;
+
+      // --------------------------------------
+      // EXPIRED
+      // --------------------------------------
+
+      if (
+        !subscription ||
+        subscription.status === "expired" ||
+        subscription.status === "cancelled"
+      ) {
+        router.replace("/subscription-expired");
+        return;
+      }
+
+      // --------------------------------------
+      // TRIAL
+      // --------------------------------------
+
+      if (subscription.status === "trial") {
+        router.replace("/home");
+        return;
+      }
+
+      // --------------------------------------
+      // ACTIVE PLAN
+      // --------------------------------------
+
+      if (subscription.status === "active") {
+        router.replace("/home");
+        return;
+      }
+
+      // --------------------------------------
+      // UNKNOWN STATUS
+      // --------------------------------------
+
+      router.replace("/subscription-expired");
+      return;
+    }
+
+    // ----------------------------------------
+    // OTHER ROLES
+    // ----------------------------------------
+
+    router.replace("/home");
   };
 
   return (
@@ -65,12 +162,23 @@ export default function LoginScreen() {
         behavior={
           Platform.OS === "ios"
             ? "padding"
-            : undefined
+            : "height"
+        }
+        keyboardVerticalOffset={
+          Platform.OS === "ios" ? 0 : 20
         }
       >
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={
+            Platform.OS === "ios"
+              ? "interactive"
+              : "on-drag"
+          }
+          automaticallyAdjustKeyboardInsets={
+            Platform.OS === "ios"
+          }
           contentContainerStyle={styles.scrollContent}
         >
           {/* ========================================
@@ -79,10 +187,14 @@ export default function LoginScreen() {
 
           <View style={styles.brandSection}>
             <View style={styles.logoOuter}>
-              <View style={styles.logoInner}>
-                <Text style={styles.logoText}>S</Text>
-              </View>
-            </View>
+  <View style={styles.logoInner}>
+    <Image
+      source={Logo}
+      style={styles.logoImage}
+      resizeMode="contain"
+    />
+  </View>
+</View>
 
             <Text style={styles.brandName}>
               SALON
@@ -119,37 +231,38 @@ export default function LoginScreen() {
             ) : null}
 
             {/* ========================================
-                PHONE
+                PHONE / EMAIL
             ======================================== */}
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                Phone Number
+                Phone Number / Email
               </Text>
 
               <View style={styles.inputContainer}>
                 <View style={styles.inputIconBox}>
                   <Text style={styles.inputIcon}>
-                    ☎
+                    @
                   </Text>
                 </View>
 
                 <TextInput
-                  value={phone}
+                  value={identifier}
                   onChangeText={(value) => {
-                    setPhone(value);
+                    setIdentifier(value);
 
                     if (error) {
                       dispatch(clearAuthError());
                     }
                   }}
-                  placeholder="Enter your phone number"
+                  placeholder="Enter phone or email"
                   placeholderTextColor="#B7A9AD"
-                  keyboardType="phone-pad"
+                  keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                   style={styles.input}
-                  maxLength={15}
+                  editable={!loading}
+                  returnKeyType="next"
                 />
               </View>
             </View>
@@ -164,7 +277,10 @@ export default function LoginScreen() {
                   Password
                 </Text>
 
-                <Pressable>
+                <Pressable
+                  disabled={loading}
+                  onPress={() => {}}
+                >
                   <Text style={styles.forgotText}>
                     Forgot Password?
                   </Text>
@@ -193,6 +309,9 @@ export default function LoginScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   style={styles.input}
+                  editable={!loading}
+                  returnKeyType="done"
+                  onSubmitEditing={handleLogin}
                 />
 
                 <Pressable
@@ -202,6 +321,7 @@ export default function LoginScreen() {
                       (value) => !value
                     )
                   }
+                  disabled={loading}
                 >
                   <Text style={styles.eyeText}>
                     {showPassword ? "◉" : "◌"}
@@ -256,25 +376,6 @@ export default function LoginScreen() {
             </View>
 
             {/* ========================================
-                GOOGLE
-            ======================================== */}
-
-            <Pressable
-              style={styles.googleButton}
-              onPress={() => {}}
-            >
-              <View style={styles.googleIcon}>
-                <Text style={styles.googleText}>
-                  G
-                </Text>
-              </View>
-
-              <Text style={styles.googleButtonText}>
-                Continue with Google
-              </Text>
-            </Pressable>
-
-            {/* ========================================
                 REGISTER
             ======================================== */}
 
@@ -287,6 +388,7 @@ export default function LoginScreen() {
                 onPress={() =>
                   router.push("/auth/register")
                 }
+                disabled={loading}
               >
                 <Text style={styles.registerLink}>
                   Create Account
@@ -302,6 +404,9 @@ export default function LoginScreen() {
           <Text style={styles.footer}>
             Your salon. Your business. Your success.
           </Text>
+
+          {/* Extra bottom space for keyboard scrolling */}
+          <View style={styles.bottomSpace} />
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -329,6 +434,14 @@ const styles = StyleSheet.create({
     paddingTop: 35,
     paddingBottom: 30,
   },
+
+  bottomSpace: {
+    height: 100,
+  },
+
+  // ========================================
+  // BRAND
+  // ========================================
 
   brandSection: {
     alignItems: "center",
@@ -376,13 +489,19 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
+  // ========================================
+  // CARD
+  // ========================================
+
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 28,
     paddingHorizontal: 20,
     paddingVertical: 24,
+
     borderWidth: 1,
     borderColor: "#F0E4E1",
+
     shadowColor: "#4D1829",
     shadowOffset: {
       width: 0,
@@ -390,6 +509,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.08,
     shadowRadius: 20,
+
     elevation: 4,
   },
 
@@ -407,6 +527,10 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
 
+  // ========================================
+  // ERROR
+  // ========================================
+
   errorBox: {
     backgroundColor: "#FDECEC",
     borderWidth: 1,
@@ -423,6 +547,10 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     fontWeight: "600",
   },
+
+  // ========================================
+  // INPUT
+  // ========================================
 
   inputGroup: {
     marginBottom: 18,
@@ -494,14 +622,30 @@ const styles = StyleSheet.create({
     fontSize: 17,
   },
 
+  // ========================================
+  // LOGIN BUTTON
+  // ========================================
+
   loginButton: {
     height: 54,
     borderRadius: 16,
     backgroundColor: "#70243A",
+
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+
     marginTop: 4,
+
+    shadowColor: "#70243A",
+    shadowOffset: {
+      width: 0,
+      height: 5,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+
+    elevation: 3,
   },
 
   loginPressed: {
@@ -524,6 +668,10 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
 
+  // ========================================
+  // DIVIDER
+  // ========================================
+
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -542,6 +690,10 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginHorizontal: 10,
   },
+
+  // ========================================
+  // GOOGLE
+  // ========================================
 
   googleButton: {
     height: 52,
@@ -576,6 +728,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
+  // ========================================
+  // REGISTER
+  // ========================================
+
   registerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -595,6 +751,15 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginLeft: 5,
   },
+  logoImage: {
+  width: 55,
+  height: 55,
+  borderRadius: 28,
+},
+
+  // ========================================
+  // FOOTER
+  // ========================================
 
   footer: {
     color: "#B0A1A5",

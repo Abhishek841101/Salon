@@ -1,32 +1,28 @@
-import {
-  createAsyncThunk,
-  createSlice,
-} from "@reduxjs/toolkit";
-
-import * as FileSystem from "expo-file-system/legacy";
+import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import API_URL from "../../config/api";
-
-/* =========================================================
-   INITIAL STATE
-========================================================= */
+// import * as DocumentPicker from "expo-document-picker";
+import { File, UploadType } from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
+// ========================================
+// INITIAL STATE
+// ========================================
 
 const initialState = {
   clients: [],
   client: null,
-
   loading: false,
   error: null,
   success: false,
-
+  bulkImporting: false,
   total: 0,
   page: 1,
   pages: 1,
 };
 
-/* =========================================================
-   HELPER
-========================================================= */
+// ========================================
+// HELPERS
+// ========================================
 
 const getToken = (getState) => {
   return getState()?.auth?.token || null;
@@ -43,21 +39,31 @@ const parseResponse = (response) => {
   }
 };
 
-/* =========================================================
-   CREATE CLIENT
-========================================================= */
+const getResponseData = async (response) => {
+  const text = await response.text();
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(
+      `Invalid server response (HTTP ${response.status})`
+    );
+  }
+};
+
+// ========================================
+// CREATE CLIENT
+// POST /api/clients
+// ========================================
 
 export const createClient = createAsyncThunk(
   "clients/createClient",
-
   async (clientData, { getState, rejectWithValue }) => {
     try {
       const token = getToken(getState);
 
       if (!token) {
-        return rejectWithValue(
-          "Authentication token missing"
-        );
+        return rejectWithValue("Authentication token missing");
       }
 
       const {
@@ -72,42 +78,13 @@ export const createClient = createAsyncThunk(
         profileImage = null,
       } = clientData || {};
 
-      console.log("========================================");
-      console.log("CREATE CLIENT SLICE");
-      console.log("TOKEN:", !!token);
-      console.log("NAME:", name);
-      console.log("PHONE:", phone);
-      console.log("EMAIL:", email);
-      console.log("GENDER:", gender);
-      console.log("DOB:", dateOfBirth);
-      console.log("ANNIVERSARY:", anniversaryDate);
-      console.log("ADDRESS:", address);
-      console.log("NOTES:", notes);
-      console.log(
-        "IMAGE:",
-        profileImage?.uri || "NO IMAGE"
-      );
-      console.log("========================================");
-
-      /* =====================================================
-         VALIDATION
-      ===================================================== */
-
       if (!String(name).trim()) {
-        return rejectWithValue(
-          "Client name is required"
-        );
+        return rejectWithValue("Client name is required");
       }
 
       if (!String(phone).trim()) {
-        return rejectWithValue(
-          "Client phone number is required"
-        );
+        return rejectWithValue("Client phone number is required");
       }
-
-      /* =====================================================
-         PARAMETERS
-      ===================================================== */
 
       const parameters = {
         name: String(name).trim(),
@@ -119,83 +96,38 @@ export const createClient = createAsyncThunk(
       };
 
       if (dateOfBirth) {
-        try {
-          parameters.dateOfBirth =
-            new Date(dateOfBirth).toISOString();
-        } catch {
-          parameters.dateOfBirth = "";
+        const dob = new Date(dateOfBirth);
+
+        if (!Number.isNaN(dob.getTime())) {
+          parameters.dateOfBirth = dob.toISOString();
         }
       }
 
       if (anniversaryDate) {
-        try {
-          parameters.anniversaryDate =
-            new Date(anniversaryDate).toISOString();
-        } catch {
-          parameters.anniversaryDate = "";
+        const anniversary = new Date(anniversaryDate);
+
+        if (!Number.isNaN(anniversary.getTime())) {
+          parameters.anniversaryDate = anniversary.toISOString();
         }
       }
 
-      /* =====================================================
-         IMAGE UPLOAD
-
-         IMPORTANT:
-         DO NOT USE:
-         fetch + FormData + Blob
-
-         Expo SDK 57 can throw:
-         Unsupported FormDataPart implementation
-
-         We use native legacy uploadAsync instead.
-      ===================================================== */
-
+      // IMAGE UPLOAD
       if (profileImage?.uri) {
-        console.log("========================================");
-        console.log("NATIVE MULTIPART IMAGE UPLOAD");
-        console.log("URI:", profileImage.uri);
-        console.log(
-          "NAME:",
-          profileImage.name || "client-image.jpg"
-        );
-        console.log(
-          "TYPE:",
-          profileImage.type || "image/jpeg"
-        );
-        console.log("========================================");
-
-        const uploadResult =
-          await FileSystem.uploadAsync(
-            `${API_URL}/clients`,
-            profileImage.uri,
-            {
-              httpMethod: "POST",
-
-              uploadType:
-                FileSystem.FileSystemUploadType.MULTIPART,
-
-              fieldName: "profileImage",
-
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-
-              parameters,
-            }
-          );
-
-        console.log(
-          "CREATE CLIENT HTTP STATUS:",
-          uploadResult.status
+        const uploadResult = await FileSystem.uploadAsync(
+          `${API_URL}/clients`,
+          profileImage.uri,
+          {
+            httpMethod: "POST",
+            uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+            fieldName: "profileImage",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            parameters,
+          }
         );
 
-        console.log(
-          "CREATE CLIENT SERVER RESPONSE:",
-          uploadResult.body
-        );
-
-        const data = parseResponse(
-          uploadResult.body
-        );
+        const data = parseResponse(uploadResult.body);
 
         if (
           uploadResult.status < 200 ||
@@ -209,597 +141,534 @@ export const createClient = createAsyncThunk(
           );
         }
 
-        console.log(
-          "========================================"
-        );
-
-        console.log(
-          "CLIENT CREATED SUCCESSFULLY"
-        );
-
-        console.log(
-          "CLIENT:",
-          data.client
-        );
-
-        console.log(
-          "========================================"
-        );
-
         return data;
       }
 
-      /* =====================================================
-         NO IMAGE
-
-         Since there is no file, normal FormData is safe
-         because there is no native file/blob part.
-      ===================================================== */
-
-      console.log(
-        "CREATE CLIENT WITHOUT IMAGE"
-      );
-
+      // CLIENT WITHOUT IMAGE
       const formData = new FormData();
 
-      Object.keys(parameters).forEach((key) => {
-        formData.append(
-          key,
-          parameters[key]
-        );
+      Object.entries(parameters).forEach(([key, value]) => {
+        formData.append(key, value);
       });
 
-      const response = await fetch(
-        `${API_URL}/clients`,
-        {
-          method: "POST",
+      const response = await fetch(`${API_URL}/clients`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+        body: formData,
+      });
 
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      const data = await getResponseData(response);
 
-          body: formData,
-        }
-      );
-
-      const data = await response.json();
-
-      console.log(
-        "CREATE CLIENT RESPONSE:",
-        response.status,
-        data
-      );
-
-      if (
-        !response.ok ||
-        !data.success
-      ) {
+      if (!response.ok || !data.success) {
         return rejectWithValue(
-          data.message ||
-            data.error ||
-            "Failed to create client"
+          data.message || data.error || "Failed to create client"
         );
       }
 
       return data;
     } catch (error) {
-      console.log(
-        "========================================"
-      );
-
-      console.log(
-        "CREATE CLIENT ERROR"
-      );
-
-      console.log(error);
-
-      console.log(
-        "========================================"
-      );
+      console.error("CREATE CLIENT ERROR:", error);
 
       return rejectWithValue(
-        error?.message ||
-          "Failed to create client"
+        error?.message || "Failed to create client"
       );
     }
   }
 );
 
-/* =========================================================
-   FETCH CLIENTS
-========================================================= */
+// ========================================
+// BULK IMPORT CLIENTS
+// POST /api/clients/bulk
+// ========================================
+
+
+export const bulkImportClients = createAsyncThunk(
+  "clients/bulkImportClients",
+  async (_, { getState, rejectWithValue }) => {
+    try {
+      const token = getToken(getState);
+
+      if (!token) {
+        return rejectWithValue("Authentication token missing");
+      }
+
+      console.log("========== BULK CLIENT IMPORT ==========");
+
+      // 1. Open Android native file picker
+      const result = await File.pickFileAsync({
+        mimeTypes: [
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "application/vnd.ms-excel",
+          "text/csv",
+          "text/comma-separated-values",
+          "application/octet-stream",
+        ],
+      });
+
+      // 2. Handle cancellation
+      if (!result || result.canceled || !result.result) {
+        return rejectWithValue("FILE_PICKER_CANCELLED");
+      }
+
+      const file = result.result;
+
+      // 3. Read selected file information
+      const fileName = String(file.name || "").trim();
+      const lowerFileName = fileName.toLowerCase();
+      const mimeType = String(file.type || "").toLowerCase();
+
+      console.log(
+        "PICKER RESULT:",
+        JSON.stringify({
+          name: fileName,
+          uri: file.uri,
+          type: mimeType,
+          size: file.size,
+          constructor: file.constructor?.name,
+        })
+      );
+
+      // 4. Validate URI
+      if (!file.uri) {
+        return rejectWithValue("Selected file URI is missing.");
+      }
+
+      // 5. Validate extension OR MIME type.
+      // Android can return a document ID instead of the actual filename.
+      const validExtension = /\.(xlsx|xls|csv)$/i.test(fileName);
+
+      const supportedMimeTypes = [
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel",
+        "text/csv",
+        "text/comma-separated-values",
+        "application/csv",
+      ];
+
+      const validMimeType = supportedMimeTypes.includes(mimeType);
+
+      if (!validExtension && !validMimeType) {
+        return rejectWithValue(
+          `Unsupported file "${fileName}". Select an Excel or CSV file.`
+        );
+      }
+
+      // 6. Validate size
+      if (typeof file.size === "number" && file.size <= 0) {
+        return rejectWithValue("The selected file is empty.");
+      }
+
+      // 7. Determine upload MIME type
+      let uploadMimeType = mimeType;
+
+      if (!uploadMimeType || uploadMimeType === "application/octet-stream") {
+        if (lowerFileName.endsWith(".csv")) {
+          uploadMimeType = "text/csv";
+        } else if (lowerFileName.endsWith(".xls")) {
+          uploadMimeType = "application/vnd.ms-excel";
+        } else {
+          uploadMimeType =
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        }
+      }
+
+      console.log("CLIENT IMPORT URI:", file.uri);
+      console.log("CLIENT IMPORT MIME:", uploadMimeType);
+      console.log("CLIENT IMPORT SIZE:", file.size);
+
+      // 8. Upload file to backend
+      const uploadUrl = `${API_URL}/clients/bulk`;
+
+      const uploadResult = await file.upload(uploadUrl, {
+        httpMethod: "POST",
+        uploadType: UploadType.MULTIPART,
+        fieldName: "file",
+        mimeType: uploadMimeType,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
+
+      console.log("CLIENT IMPORT HTTP STATUS:", uploadResult.status);
+      console.log("CLIENT IMPORT RESPONSE:", uploadResult.body);
+
+      // 9. Parse backend response
+      let data;
+
+      try {
+        data =
+          typeof uploadResult.body === "string"
+            ? JSON.parse(uploadResult.body || "{}")
+            : uploadResult.body || {};
+      } catch (parseError) {
+        console.error("CLIENT IMPORT PARSE ERROR:", parseError);
+
+        return rejectWithValue(
+          `Invalid server response (HTTP ${uploadResult.status}).`
+        );
+      }
+
+      // 10. Check HTTP and backend errors
+      if (uploadResult.status < 200 || uploadResult.status >= 300) {
+        return rejectWithValue(
+          data.message ||
+            data.error ||
+            `Import failed with HTTP ${uploadResult.status}.`
+        );
+      }
+
+      if (data.success === false) {
+        return rejectWithValue(
+          data.message || data.error || "Client import failed."
+        );
+      }
+
+      console.log("CLIENT IMPORT SUMMARY:", data.summary);
+
+      return data;
+    } catch (error) {
+      console.error("CLIENT BULK IMPORT ERROR:", error);
+
+      return rejectWithValue(
+        error?.message || "Unable to import clients."
+      );
+    }
+  }
+);
+
+
+
+
+// ========================================
+// FETCH CLIENTS
+// GET /api/clients
+// ========================================
 
 export const fetchClients = createAsyncThunk(
   "clients/fetchClients",
-
   async (
-    {
-      page = 1,
-      limit = 20,
-      search = "",
-    } = {},
+    { page = 1, limit = 20, search = "" } = {},
     { getState, rejectWithValue }
   ) => {
     try {
       const token = getToken(getState);
 
       if (!token) {
-        return rejectWithValue(
-          "Authentication token missing"
-        );
+        return rejectWithValue("Authentication token missing");
       }
 
       const params = new URLSearchParams();
 
-      params.append(
-        "page",
-        String(page)
-      );
-
-      params.append(
-        "limit",
-        String(limit)
-      );
+      params.append("page", String(page));
+      params.append("limit", String(limit));
 
       if (String(search).trim()) {
-        params.append(
-          "search",
-          String(search).trim()
-        );
+        params.append("search", String(search).trim());
       }
 
-      const url =
-        `${API_URL}/clients?${params.toString()}`;
-
-      console.log(
-        "FETCH CLIENTS:",
-        url
-      );
-
       const response = await fetch(
-        url,
+        `${API_URL}/clients?${params.toString()}`,
         {
           method: "GET",
-
           headers: {
-            Authorization:
-              `Bearer ${token}`,
-
-            Accept:
-              "application/json",
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
           },
         }
       );
 
-      const data =
-        await response.json();
+      const data = await getResponseData(response);
 
-      if (
-        !response.ok ||
-        !data.success
-      ) {
+      if (!response.ok || !data.success) {
         return rejectWithValue(
-          data.message ||
-            "Failed to fetch clients"
+          data.message || "Failed to fetch clients"
         );
       }
 
       return data;
     } catch (error) {
-      console.log(
-        "FETCH CLIENTS ERROR:",
-        error
-      );
+      console.error("FETCH CLIENTS ERROR:", error);
 
       return rejectWithValue(
-        error?.message ||
-          "Unable to connect to server"
+        error?.message || "Unable to connect to server"
       );
     }
   }
 );
 
-/* =========================================================
-   GET CLIENT BY ID
-========================================================= */
+// ========================================
+// GET CLIENT BY ID
+// GET /api/clients/:id
+// ========================================
 
-export const getClientById =
-  createAsyncThunk(
-    "clients/getClientById",
+export const getClientById = createAsyncThunk(
+  "clients/getClientById",
+  async (id, { getState, rejectWithValue }) => {
+    try {
+      const token = getToken(getState);
 
-    async (
-      id,
-      { getState, rejectWithValue }
-    ) => {
-      try {
-        const token =
-          getToken(getState);
+      if (!token) {
+        return rejectWithValue("Authentication token missing");
+      }
 
-        if (!token) {
-          return rejectWithValue(
-            "Authentication token missing"
-          );
-        }
+      if (!id) {
+        return rejectWithValue("Client ID is required");
+      }
 
-        if (!id) {
-          return rejectWithValue(
-            "Client ID is required"
-          );
-        }
+      const response = await fetch(`${API_URL}/clients/${id}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
 
-        const response =
-          await fetch(
-            `${API_URL}/clients/${id}`,
-            {
-              method: "GET",
+      const data = await getResponseData(response);
 
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-
-                Accept:
-                  "application/json",
-              },
-            }
-          );
-
-        const data =
-          await response.json();
-
-        if (
-          !response.ok ||
-          !data.success
-        ) {
-          return rejectWithValue(
-            data.message ||
-              "Failed to fetch client"
-          );
-        }
-
-        return data;
-      } catch (error) {
+      if (!response.ok || !data.success) {
         return rejectWithValue(
-          error?.message ||
-            "Failed to fetch client"
+          data.message || "Failed to fetch client"
         );
       }
+
+      return data;
+    } catch (error) {
+      return rejectWithValue(
+        error?.message || "Failed to fetch client"
+      );
     }
-  );
+  }
+);
 
-/* =========================================================
-   GET CLIENT HISTORY
-========================================================= */
+// ========================================
+// GET CLIENT HISTORY
+// GET /api/clients/:id/history
+// ========================================
 
-export const getClientHistory =
-  createAsyncThunk(
-    "clients/getClientHistory",
+export const getClientHistory = createAsyncThunk(
+  "clients/getClientHistory",
+  async (id, { getState, rejectWithValue }) => {
+    try {
+      const token = getToken(getState);
 
-    async (
-      id,
-      { getState, rejectWithValue }
-    ) => {
-      try {
-        const token =
-          getToken(getState);
+      if (!token) {
+        return rejectWithValue("Authentication token missing");
+      }
 
-        if (!token) {
-          return rejectWithValue(
-            "Authentication token missing"
-          );
+      if (!id) {
+        return rejectWithValue("Client ID is required");
+      }
+
+      const response = await fetch(
+        `${API_URL}/clients/${id}/history`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
         }
+      );
 
-        if (!id) {
-          return rejectWithValue(
-            "Client ID is required"
-          );
-        }
+      const data = await getResponseData(response);
 
-        const response =
-          await fetch(
-            `${API_URL}/clients/${id}/history`,
-            {
-              method: "GET",
-
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-
-                Accept:
-                  "application/json",
-              },
-            }
-          );
-
-        const data =
-          await response.json();
-
-        if (
-          !response.ok ||
-          !data.success
-        ) {
-          return rejectWithValue(
-            data.message ||
-              "Failed to fetch client history"
-          );
-        }
-
-        return data;
-      } catch (error) {
+      if (!response.ok || !data.success) {
         return rejectWithValue(
-          error?.message ||
-            "Failed to fetch client history"
+          data.message || "Failed to fetch client history"
         );
       }
+
+      return data;
+    } catch (error) {
+      return rejectWithValue(
+        error?.message || "Failed to fetch client history"
+      );
     }
-  );
+  }
+);
 
-/* =========================================================
-   UPDATE CLIENT
-========================================================= */
+// ========================================
+// UPDATE CLIENT
+// PUT /api/clients/:id
+// ========================================
 
-export const updateClient =
-  createAsyncThunk(
-    "clients/updateClient",
+export const updateClient = createAsyncThunk(
+  "clients/updateClient",
+  async ({ id, ...clientData }, { getState, rejectWithValue }) => {
+    try {
+      const token = getToken(getState);
 
-    async (
-      {
-        id,
-        ...clientData
-      },
-      { getState, rejectWithValue }
-    ) => {
-      try {
-        const token =
-          getToken(getState);
+      if (!token) {
+        return rejectWithValue("Authentication token missing");
+      }
 
-        if (!token) {
-          return rejectWithValue(
-            "Authentication token missing"
-          );
-        }
+      if (!id) {
+        return rejectWithValue("Client ID is required");
+      }
 
-        if (!id) {
-          return rejectWithValue(
-            "Client ID is required"
-          );
-        }
+      const response = await fetch(`${API_URL}/clients/${id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(clientData),
+      });
 
-        const response =
-          await fetch(
-            `${API_URL}/clients/${id}`,
-            {
-              method: "PUT",
+      const data = await getResponseData(response);
 
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-
-                "Content-Type":
-                  "application/json",
-
-                Accept:
-                  "application/json",
-              },
-
-              body: JSON.stringify(
-                clientData
-              ),
-            }
-          );
-
-        const data =
-          await response.json();
-
-        if (
-          !response.ok ||
-          !data.success
-        ) {
-          return rejectWithValue(
-            data.message ||
-              "Failed to update client"
-          );
-        }
-
-        return data;
-      } catch (error) {
+      if (!response.ok || !data.success) {
         return rejectWithValue(
-          error?.message ||
-            "Failed to update client"
+          data.message || "Failed to update client"
         );
       }
+
+      return data;
+    } catch (error) {
+      return rejectWithValue(
+        error?.message || "Failed to update client"
+      );
     }
-  );
+  }
+);
 
-/* =========================================================
-   DEACTIVATE CLIENT
-========================================================= */
+// ========================================
+// DEACTIVATE CLIENT
+// PATCH /api/clients/:id/deactivate
+// ========================================
 
-export const deactivateClient =
-  createAsyncThunk(
-    "clients/deactivateClient",
+export const deactivateClient = createAsyncThunk(
+  "clients/deactivateClient",
+  async (id, { getState, rejectWithValue }) => {
+    try {
+      const token = getToken(getState);
 
-    async (
-      id,
-      { getState, rejectWithValue }
-    ) => {
-      try {
-        const token =
-          getToken(getState);
+      if (!token) {
+        return rejectWithValue("Authentication token missing");
+      }
 
-        if (!token) {
-          return rejectWithValue(
-            "Authentication token missing"
-          );
+      const response = await fetch(
+        `${API_URL}/clients/${id}/deactivate`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
         }
+      );
 
-        const response =
-          await fetch(
-            `${API_URL}/clients/${id}/deactivate`,
-            {
-              method: "PATCH",
+      const data = await getResponseData(response);
 
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-
-                Accept:
-                  "application/json",
-              },
-            }
-          );
-
-        const data =
-          await response.json();
-
-        if (
-          !response.ok ||
-          !data.success
-        ) {
-          return rejectWithValue(
-            data.message ||
-              "Failed to deactivate client"
-          );
-        }
-
-        return data;
-      } catch (error) {
+      if (!response.ok || !data.success) {
         return rejectWithValue(
-          error?.message ||
-            "Failed to deactivate client"
+          data.message || "Failed to deactivate client"
         );
       }
+
+      return data;
+    } catch (error) {
+      return rejectWithValue(
+        error?.message || "Failed to deactivate client"
+      );
     }
-  );
+  }
+);
 
-/* =========================================================
-   REACTIVATE CLIENT
-========================================================= */
+// ========================================
+// REACTIVATE CLIENT
+// PATCH /api/clients/:id/reactivate
+// ========================================
 
-export const reactivateClient =
-  createAsyncThunk(
-    "clients/reactivateClient",
+export const reactivateClient = createAsyncThunk(
+  "clients/reactivateClient",
+  async (id, { getState, rejectWithValue }) => {
+    try {
+      const token = getToken(getState);
 
-    async (
-      id,
-      { getState, rejectWithValue }
-    ) => {
-      try {
-        const token =
-          getToken(getState);
+      if (!token) {
+        return rejectWithValue("Authentication token missing");
+      }
 
-        if (!token) {
-          return rejectWithValue(
-            "Authentication token missing"
-          );
+      const response = await fetch(
+        `${API_URL}/clients/${id}/reactivate`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
         }
+      );
 
-        const response =
-          await fetch(
-            `${API_URL}/clients/${id}/reactivate`,
-            {
-              method: "PATCH",
+      const data = await getResponseData(response);
 
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-
-                Accept:
-                  "application/json",
-              },
-            }
-          );
-
-        const data =
-          await response.json();
-
-        if (
-          !response.ok ||
-          !data.success
-        ) {
-          return rejectWithValue(
-            data.message ||
-              "Failed to reactivate client"
-          );
-        }
-
-        return data;
-      } catch (error) {
+      if (!response.ok || !data.success) {
         return rejectWithValue(
-          error?.message ||
-            "Failed to reactivate client"
+          data.message || "Failed to reactivate client"
         );
       }
+
+      return data;
+    } catch (error) {
+      return rejectWithValue(
+        error?.message || "Failed to reactivate client"
+      );
     }
-  );
+  }
+);
 
-/* =========================================================
-   DELETE CLIENT
-========================================================= */
+// ========================================
+// DELETE CLIENT
+// DELETE /api/clients/:id
+// ========================================
 
-export const deleteClient =
-  createAsyncThunk(
-    "clients/deleteClient",
+export const deleteClient = createAsyncThunk(
+  "clients/deleteClient",
+  async (id, { getState, rejectWithValue }) => {
+    try {
+      const token = getToken(getState);
 
-    async (
-      id,
-      { getState, rejectWithValue }
-    ) => {
-      try {
-        const token =
-          getToken(getState);
+      if (!token) {
+        return rejectWithValue("Authentication token missing");
+      }
 
-        if (!token) {
-          return rejectWithValue(
-            "Authentication token missing"
-          );
-        }
+      const response = await fetch(`${API_URL}/clients/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
 
-        const response =
-          await fetch(
-            `${API_URL}/clients/${id}`,
-            {
-              method: "DELETE",
+      const data = await getResponseData(response);
 
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-
-                Accept:
-                  "application/json",
-              },
-            }
-          );
-
-        const data =
-          await response.json();
-
-        if (
-          !response.ok ||
-          !data.success
-        ) {
-          return rejectWithValue(
-            data.message ||
-              "Failed to delete client"
-          );
-        }
-
-        return data;
-      } catch (error) {
+      if (!response.ok || !data.success) {
         return rejectWithValue(
-          error?.message ||
-            "Failed to delete client"
+          data.message || "Failed to delete client"
         );
       }
-    }
-  );
 
-/* =========================================================
-   SLICE
-========================================================= */
+      return data;
+    } catch (error) {
+      return rejectWithValue(
+        error?.message || "Failed to delete client"
+      );
+    }
+  }
+);
+
+// ========================================
+// CLIENT SLICE
+// ========================================
 
 const clientsSlice = createSlice({
   name: "clients",
-
   initialState,
 
   reducers: {
@@ -819,326 +688,239 @@ const clientsSlice = createSlice({
   extraReducers: (builder) => {
     builder
 
-      /* ===================================================
-         CREATE
-      =================================================== */
+      // CREATE CLIENT
+      .addCase(createClient.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        state.success = false;
+      })
 
-      .addCase(
-        createClient.pending,
-        (state) => {
-          state.loading = true;
-          state.error = null;
-          state.success = false;
-        }
-      )
+      .addCase(createClient.fulfilled, (state, action) => {
+        state.loading = false;
+        state.error = null;
+        state.success = true;
 
-      .addCase(
-        createClient.fulfilled,
-        (state, action) => {
-          state.loading = false;
-          state.error = null;
-          state.success = true;
+        const client = action.payload?.client || null;
 
-          const client =
-            action.payload?.client ||
-            null;
+        state.client = client;
 
-          state.client = client;
+        if (client) {
+          const exists = state.clients.some(
+            (item) => String(item._id) === String(client._id)
+          );
 
-          if (client) {
-            state.clients.unshift(
-              client
-            );
-
+          if (!exists) {
+            state.clients.unshift(client);
             state.total += 1;
           }
         }
-      )
+      })
 
-      .addCase(
-        createClient.rejected,
-        (state, action) => {
-          state.loading = false;
-          state.success = false;
+      .addCase(createClient.rejected, (state, action) => {
+        state.loading = false;
+        state.success = false;
+        state.error =
+          action.payload ||
+          action.error?.message ||
+          "Failed to create client";
+      })
 
+      // FETCH CLIENTS
+      .addCase(fetchClients.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+
+      .addCase(fetchClients.fulfilled, (state, action) => {
+        state.loading = false;
+        state.error = null;
+
+        const payload = action.payload || {};
+
+        state.clients = payload.clients || payload.data || [];
+
+        state.total =
+          payload.total ??
+          payload.pagination?.total ??
+          state.clients.length;
+
+        state.page =
+          payload.page ??
+          payload.pagination?.page ??
+          1;
+
+        state.pages =
+          payload.pages ??
+          payload.pagination?.totalPages ??
+          payload.pagination?.pages ??
+          1;
+      })
+
+      .addCase(fetchClients.rejected, (state, action) => {
+        state.loading = false;
+        state.error =
+          action.payload ||
+          action.error?.message ||
+          "Failed to fetch clients";
+      })
+
+      // GET CLIENT BY ID
+      .addCase(getClientById.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+
+      .addCase(getClientById.fulfilled, (state, action) => {
+        state.loading = false;
+        state.error = null;
+        state.client =
+          action.payload?.client ||
+          action.payload?.data ||
+          null;
+      })
+
+      .addCase(getClientById.rejected, (state, action) => {
+        state.loading = false;
+        state.error =
+          action.payload || "Failed to fetch client";
+      })
+
+      // CLIENT HISTORY
+      .addCase(getClientHistory.rejected, (state, action) => {
+        state.error =
+          action.payload || "Failed to fetch client history";
+      })
+
+      // UPDATE CLIENT
+      .addCase(updateClient.fulfilled, (state, action) => {
+        const updated =
+          action.payload?.client ||
+          action.payload?.data;
+
+        if (!updated) return;
+
+        state.client = updated;
+
+        const index = state.clients.findIndex(
+          (item) => String(item._id) === String(updated._id)
+        );
+
+        if (index !== -1) {
+          state.clients[index] = updated;
+        }
+      })
+
+      .addCase(updateClient.rejected, (state, action) => {
+        state.error =
+          action.payload || "Failed to update client";
+      })
+
+      // DEACTIVATE CLIENT
+      .addCase(deactivateClient.fulfilled, (state, action) => {
+        const updated = action.payload?.client;
+
+        if (!updated) return;
+
+        state.client = updated;
+
+        const index = state.clients.findIndex(
+          (item) => String(item._id) === String(updated._id)
+        );
+
+        if (index !== -1) {
+          state.clients[index] = updated;
+        }
+      })
+
+      .addCase(deactivateClient.rejected, (state, action) => {
+        state.error =
+          action.payload || "Failed to deactivate client";
+      })
+
+      // REACTIVATE CLIENT
+      .addCase(reactivateClient.fulfilled, (state, action) => {
+        const updated = action.payload?.client;
+
+        if (!updated) return;
+
+        state.client = updated;
+
+        const index = state.clients.findIndex(
+          (item) => String(item._id) === String(updated._id)
+        );
+
+        if (index !== -1) {
+          state.clients[index] = updated;
+        }
+      })
+
+      .addCase(reactivateClient.rejected, (state, action) => {
+        state.error =
+          action.payload || "Failed to reactivate client";
+      })
+
+      // BULK IMPORT
+      .addCase(bulkImportClients.pending, (state) => {
+        state.bulkImporting = true;
+        state.error = null;
+      })
+
+      .addCase(bulkImportClients.fulfilled, (state, action) => {
+        state.bulkImporting = false;
+        state.error = null;
+
+        const importedClients = action.payload?.clients || [];
+
+        const existingIds = new Set(
+          state.clients.map((client) => String(client._id))
+        );
+
+        const newClients = importedClients.filter(
+          (client) => !existingIds.has(String(client._id))
+        );
+
+        state.clients = [...newClients, ...state.clients];
+        state.total += newClients.length;
+      })
+
+      .addCase(bulkImportClients.rejected, (state, action) => {
+        state.bulkImporting = false;
+
+        if (action.payload !== "FILE_PICKER_CANCELLED") {
           state.error =
             action.payload ||
             action.error?.message ||
-            "Failed to create client";
+            "Client import failed.";
         }
-      )
+      })
 
-      /* ===================================================
-         FETCH
-      =================================================== */
+      // DELETE CLIENT
+      .addCase(deleteClient.fulfilled, (state, action) => {
+        const deletedId = action.meta.arg;
 
-      .addCase(
-        fetchClients.pending,
-        (state) => {
-          state.loading = true;
-          state.error = null;
+        state.clients = state.clients.filter(
+          (item) => String(item._id) !== String(deletedId)
+        );
+
+        if (state.total > 0) {
+          state.total -= 1;
         }
-      )
 
-      .addCase(
-        fetchClients.fulfilled,
-        (state, action) => {
-          state.loading = false;
-          state.error = null;
-
-          const payload =
-            action.payload || {};
-
-          state.clients =
-            payload.clients ||
-            payload.data ||
-            [];
-
-          state.total =
-            payload.total ??
-            payload.pagination?.total ??
-            state.clients.length;
-
-          state.page =
-            payload.page ??
-            payload.pagination?.page ??
-            1;
-
-          state.pages =
-            payload.pages ??
-            payload.pagination?.pages ??
-            1;
+        if (String(state.client?._id) === String(deletedId)) {
+          state.client = null;
         }
-      )
+      })
 
-      .addCase(
-        fetchClients.rejected,
-        (state, action) => {
-          state.loading = false;
-
-          state.error =
-            action.payload ||
-            action.error?.message ||
-            "Failed to fetch clients";
-        }
-      )
-
-      /* ===================================================
-         GET SINGLE
-      =================================================== */
-
-      .addCase(
-        getClientById.pending,
-        (state) => {
-          state.loading = true;
-          state.error = null;
-        }
-      )
-
-      .addCase(
-        getClientById.fulfilled,
-        (state, action) => {
-          state.loading = false;
-          state.error = null;
-
-          state.client =
-            action.payload?.client ||
-            action.payload?.data ||
-            null;
-        }
-      )
-
-      .addCase(
-        getClientById.rejected,
-        (state, action) => {
-          state.loading = false;
-
-          state.error =
-            action.payload ||
-            "Failed to fetch client";
-        }
-      )
-
-      /* ===================================================
-         HISTORY
-      =================================================== */
-
-      .addCase(
-        getClientHistory.rejected,
-        (state, action) => {
-          state.error =
-            action.payload ||
-            "Failed to fetch client history";
-        }
-      )
-
-      /* ===================================================
-         UPDATE
-      =================================================== */
-
-      .addCase(
-        updateClient.fulfilled,
-        (state, action) => {
-          const updated =
-            action.payload?.client ||
-            action.payload?.data;
-
-          if (!updated) {
-            return;
-          }
-
-          state.client =
-            updated;
-
-          const index =
-            state.clients.findIndex(
-              (item) =>
-                item._id ===
-                updated._id
-            );
-
-          if (index !== -1) {
-            state.clients[index] =
-              updated;
-          }
-        }
-      )
-
-      .addCase(
-        updateClient.rejected,
-        (state, action) => {
-          state.error =
-            action.payload ||
-            "Failed to update client";
-        }
-      )
-
-      /* ===================================================
-         DEACTIVATE
-      =================================================== */
-
-      .addCase(
-        deactivateClient.fulfilled,
-        (state, action) => {
-          const updated =
-            action.payload?.client;
-
-          if (!updated) {
-            return;
-          }
-
-          state.client =
-            updated;
-
-          const index =
-            state.clients.findIndex(
-              (item) =>
-                item._id ===
-                updated._id
-            );
-
-          if (index !== -1) {
-            state.clients[index] =
-              updated;
-          }
-        }
-      )
-
-      .addCase(
-        deactivateClient.rejected,
-        (state, action) => {
-          state.error =
-            action.payload ||
-            "Failed to deactivate client";
-        }
-      )
-
-      /* ===================================================
-         REACTIVATE
-      =================================================== */
-
-      .addCase(
-        reactivateClient.fulfilled,
-        (state, action) => {
-          const updated =
-            action.payload?.client;
-
-          if (!updated) {
-            return;
-          }
-
-          state.client =
-            updated;
-
-          const index =
-            state.clients.findIndex(
-              (item) =>
-                item._id ===
-                updated._id
-            );
-
-          if (index !== -1) {
-            state.clients[index] =
-              updated;
-          }
-        }
-      )
-
-      .addCase(
-        reactivateClient.rejected,
-        (state, action) => {
-          state.error =
-            action.payload ||
-            "Failed to reactivate client";
-        }
-      )
-
-      /* ===================================================
-         DELETE
-      =================================================== */
-
-      .addCase(
-        deleteClient.fulfilled,
-        (state, action) => {
-          const deletedId =
-            action.meta.arg;
-
-          state.clients =
-            state.clients.filter(
-              (item) =>
-                item._id !==
-                deletedId
-            );
-
-          if (
-            state.total > 0
-          ) {
-            state.total -= 1;
-          }
-
-          if (
-            state.client?._id ===
-            deletedId
-          ) {
-            state.client = null;
-          }
-        }
-      )
-
-      .addCase(
-        deleteClient.rejected,
-        (state, action) => {
-          state.error =
-            action.payload ||
-            "Failed to delete client";
-        }
-      );
+      .addCase(deleteClient.rejected, (state, action) => {
+        state.error =
+          action.payload || "Failed to delete client";
+      });
   },
 });
 
-/* =========================================================
-   ACTIONS
-========================================================= */
+// ========================================
+// ACTIONS
+// ========================================
 
 export const {
   clearClientError,
@@ -1146,32 +928,27 @@ export const {
   clearSelectedClient,
 } = clientsSlice.actions;
 
-/* =========================================================
-   SELECTORS
-========================================================= */
+// ========================================
+// SELECTORS
+// ========================================
 
-export const selectClients =
-  (state) =>
-    state.clients?.clients || [];
+export const selectClients = (state) =>
+  state.clients?.clients || [];
 
-export const selectClient =
-  (state) =>
-    state.clients?.client || null;
+export const selectClient = (state) =>
+  state.clients?.client || null;
 
-export const selectClientsLoading =
-  (state) =>
-    state.clients?.loading || false;
+export const selectClientsLoading = (state) =>
+  state.clients?.loading || false;
 
-export const selectClientsError =
-  (state) =>
-    state.clients?.error || null;
+export const selectClientsError = (state) =>
+  state.clients?.error || null;
 
-export const selectClientsTotal =
-  (state) =>
-    state.clients?.total || 0;
+export const selectClientsTotal = (state) =>
+  state.clients?.total || 0;
 
-/* =========================================================
-   REDUCER
-========================================================= */
+// ========================================
+// REDUCER
+// ========================================
 
 export default clientsSlice.reducer;

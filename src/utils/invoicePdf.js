@@ -264,7 +264,7 @@ const createInvoiceHtml = (bill) => {
 />
 
 <title>
-  Glow Salon Invoice ${escapeHtml(invoiceNumber)}
+  GLOW Salon Invoice ${escapeHtml(invoiceNumber)}
 </title>
 
 <style>
@@ -1492,7 +1492,7 @@ export const shareInvoicePdf = async (
           "application/pdf",
 
         dialogTitle:
-          "Share Glow Salon Invoice",
+          "Share COZ`E Salon Invoice",
 
         UTI:
           "com.adobe.pdf",

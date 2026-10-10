@@ -57,7 +57,7 @@ export default function HelpSupportScreen() {
 
   const whatsappSalon = async () => {
     const url =
-      "https://wa.me/919955607199?text=Hello%20Glow%20Salon,%20I%20need%20help.";
+      "https://wa.me/919955607199?text=Hello%20COZ`E%20Salon,%20I%20need%20help.";
 
     try {
       await Linking.openURL(url);
@@ -71,7 +71,7 @@ export default function HelpSupportScreen() {
 
   const emailSalon = async () => {
     const url =
-      "mailto:support@glowsalon.com?subject=Glow%20Salon%20Support";
+      "mailto:support@COZ`Esalon.com?subject=COZ`E%20Salon%20Support";
 
     try {
       await Linking.openURL(url);
@@ -101,7 +101,7 @@ export default function HelpSupportScreen() {
 
           <View style={styles.headerCenter}>
             <Text style={styles.headerSmall}>
-              GLOW SALON
+              COZ`E SALON
             </Text>
 
             <Text style={styles.headerTitle}>
@@ -335,7 +335,7 @@ export default function HelpSupportScreen() {
           {/* FOOTER */}
 
           <Text style={styles.footer}>
-            GLOW SALON • WE'RE HERE FOR YOU
+            COZ`E SALON • WE'RE HERE FOR YOU
           </Text>
 
           <View style={styles.bottomSpace} />

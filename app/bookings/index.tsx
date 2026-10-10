@@ -850,13 +850,7 @@ export default function BookingsScreen() {
           style={styles.header}
         >
           <View>
-            <Text
-              style={
-                styles.headerSmall
-              }
-            >
-              GLOW SALON
-            </Text>
+            
 
             <Text
               style={
@@ -2033,7 +2027,7 @@ const styles =
 
     content: {
       paddingHorizontal: 19,
-      paddingTop: 12,
+      paddingTop: 40,
       paddingBottom: 30,
     },
 

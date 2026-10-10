@@ -18,7 +18,7 @@ import { StatusBar } from "expo-status-bar";
 const MAROON = "#70253B";
 
 export default function PersonalDetailsScreen() {
-  const [name, setName] = useState("Glow Guest");
+  const [name, setName] = useState("COZ`E Guest");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
 
@@ -158,7 +158,7 @@ export default function PersonalDetailsScreen() {
 
               <View style={styles.headerCenter}>
                 <Text style={styles.brand}>
-                  GLOW SALON
+                  COZ`E SALON
                 </Text>
 
                 <Text style={styles.headerTitle}>

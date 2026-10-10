@@ -15,12 +15,14 @@ import {
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
-
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   fetchClients,
   clearClientError,
+  bulkImportClients,
 } from "../../src/features/clients/clientsSlice";
-
+import { File } from "expo-file-system";
+// import { router } from "expo-router";
 type Client = {
   _id: string;
   name?: string;
@@ -29,7 +31,6 @@ type Client = {
   gender?: string;
   address?: string;
   isActive?: boolean;
-
   profileImage?: {
     url?: string;
     publicId?: string;
@@ -48,6 +49,9 @@ type ClientsState = {
   pagination?: Pagination;
   loading?: boolean;
   error?: string | null;
+  total?: number;
+  page?: number;
+  pages?: number;
 };
 
 type RootState = {
@@ -72,10 +76,13 @@ export default function ClientsScreen() {
     ? clientsState.clients
     : [];
 
-  const pagination = clientsState?.pagination || {};
+  const pagination = clientsState?.pagination || {
+    total: clientsState?.total,
+    page: clientsState?.page,
+    totalPages: clientsState?.pages,
+  };
 
   const loading = Boolean(clientsState?.loading);
-
   const error = clientsState?.error || null;
 
   const totalClients =
@@ -96,16 +103,11 @@ export default function ClientsScreen() {
 
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-
-  // ========================================
-  // LOAD CLIENTS
-  // ========================================
+  const [bulkImporting, setBulkImporting] = useState(false);
 
   const loadClients = useCallback(
     async (searchText = "", page = 1) => {
-      if (!token) {
-        return;
-      }
+      if (!token) return;
 
       try {
         await dispatch(
@@ -123,94 +125,110 @@ export default function ClientsScreen() {
     [dispatch, token]
   );
 
-  // ========================================
-  // LOAD WHEN SCREEN OPENS
-  // ========================================
-
   useFocusEffect(
     useCallback(() => {
       if (token) {
-        loadClients("", 1);
+        loadClients(search, 1);
       }
     }, [token, loadClients])
   );
 
-  // ========================================
-  // REFRESH
-  // ========================================
-
   const handleRefresh = async () => {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
     setRefreshing(true);
 
     try {
-      await dispatch(
-        fetchClients({
-          token,
-          search,
-          page: 1,
-          limit: 20,
-        })
-      );
-    } catch (err) {
-      console.log("REFRESH CLIENTS ERROR:", err);
+      await loadClients(search.trim(), 1);
     } finally {
       setRefreshing(false);
     }
   };
 
-  // ========================================
-  // SEARCH
-  // ========================================
-
   const handleSearch = () => {
     loadClients(search.trim(), 1);
   };
-
-  // ========================================
-  // CLEAR SEARCH
-  // ========================================
 
   const clearSearch = () => {
     setSearch("");
     loadClients("", 1);
   };
 
-  // ========================================
-  // ERROR
-  // ========================================
+  const handleBulkImport = async () => {
+    if (bulkImporting) return;
+
+    setBulkImporting(true);
+
+    try {
+      const result = await dispatch(bulkImportClients());
+
+      if (bulkImportClients.fulfilled.match(result)) {
+        const payload = result.payload || {};
+        const summary = payload.summary || {};
+
+        const imported =
+          summary.imported ??
+          payload.imported ??
+          payload.created ??
+          0;
+
+        const skipped =
+          summary.skipped ??
+          payload.skipped ??
+          payload.duplicates ??
+          0;
+
+        const totalRows =
+          summary.totalRows ??
+          payload.totalRows ??
+          imported + skipped;
+
+        Alert.alert(
+          "Bulk Import Complete",
+          `Total rows: ${totalRows}\nImported: ${imported}\nSkipped: ${skipped}`,
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                loadClients(search.trim(), 1);
+              },
+            },
+          ]
+        );
+      } else {
+        const message =
+          result.payload ||
+          result.error?.message ||
+          "Unable to import clients.";
+
+        if (message !== "FILE_PICKER_CANCELLED") {
+          Alert.alert("Bulk Import Failed", String(message));
+        }
+      }
+    } catch (err: any) {
+      Alert.alert(
+        "Bulk Import Failed",
+        err?.message || "Unable to import clients."
+      );
+    } finally {
+      setBulkImporting(false);
+    }
+  };
 
   useEffect(() => {
-    if (!error) {
-      return;
-    }
+    if (!error) return;
 
     Alert.alert("Error", error);
-
     dispatch(clearClientError());
   }, [error, dispatch]);
 
-  // ========================================
-  // INITIALS
-  // ========================================
-
   const getInitials = (name?: string) => {
-    if (!name?.trim()) {
-      return "CL";
-    }
+    if (!name?.trim()) return "CL";
 
-    const parts = name
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean);
+    const parts = name.trim().split(/\s+/).filter(Boolean);
 
     if (parts.length === 1) {
-      return parts[0]
-        .substring(0, 2)
-        .toUpperCase();
+      return parts[0].substring(0, 2).toUpperCase();
     }
 
     return (
@@ -218,15 +236,7 @@ export default function ClientsScreen() {
     ).toUpperCase();
   };
 
-  // ========================================
-  // CLIENT CARD
-  // ========================================
-
-  const renderClient = ({
-    item,
-  }: {
-    item: Client;
-  }) => {
+  const renderClient = ({ item }: { item: Client }) => {
     const initials = getInitials(item.name);
 
     const imageUrl =
@@ -236,55 +246,35 @@ export default function ClientsScreen() {
 
     return (
       <Pressable
-        onPress={() =>
-          router.push(`/clients/${item._id}`)
-        }
+        onPress={() => router.push(`/clients/${item._id}`)}
         style={({ pressed }) => [
           styles.card,
           pressed && styles.cardPressed,
         ]}
       >
-        {/* ================================= */}
-        {/* PROFILE IMAGE */}
-        {/* ================================= */}
-
         <View style={styles.avatarWrapper}>
           {imageUrl ? (
             <RNImage
               source={{ uri: imageUrl }}
               style={styles.profileImage}
               resizeMode="cover"
-              onError={() => {
-                console.log(
-                  "CLIENT IMAGE LOAD ERROR:",
-                  imageUrl
-                );
-              }}
+              onError={() =>
+                console.log("CLIENT IMAGE LOAD ERROR:", imageUrl)
+              }
             />
           ) : (
             <View style={styles.avatarFallback}>
-              <Text style={styles.avatarText}>
-                {initials}
-              </Text>
+              <Text style={styles.avatarText}>{initials}</Text>
             </View>
           )}
         </View>
 
-        {/* ================================= */}
-        {/* CLIENT INFO */}
-        {/* ================================= */}
-
         <View style={styles.clientInfo}>
           <View style={styles.nameRow}>
-            <Text
-              style={styles.clientName}
-              numberOfLines={1}
-            >
+            <Text style={styles.clientName} numberOfLines={1}>
               {item.name?.trim() || "Unknown Client"}
             </Text>
           </View>
-
-          {/* PHONE */}
 
           {item.phone ? (
             <View style={styles.infoRow}>
@@ -293,17 +283,11 @@ export default function ClientsScreen() {
                 size={14}
                 color="#8C6870"
               />
-
-              <Text
-                style={styles.phone}
-                numberOfLines={1}
-              >
+              <Text style={styles.phone} numberOfLines={1}>
                 {item.phone}
               </Text>
             </View>
           ) : null}
-
-          {/* EMAIL */}
 
           {item.email ? (
             <View style={styles.infoRow}>
@@ -312,17 +296,11 @@ export default function ClientsScreen() {
                 size={14}
                 color="#8C6870"
               />
-
-              <Text
-                style={styles.email}
-                numberOfLines={1}
-              >
+              <Text style={styles.email} numberOfLines={1}>
                 {item.email}
               </Text>
             </View>
           ) : null}
-
-          {/* ADDRESS */}
 
           {item.address ? (
             <View style={styles.infoRow}>
@@ -331,20 +309,12 @@ export default function ClientsScreen() {
                 size={14}
                 color="#8C6870"
               />
-
-              <Text
-                style={styles.address}
-                numberOfLines={1}
-              >
+              <Text style={styles.address} numberOfLines={1}>
                 {item.address}
               </Text>
             </View>
           ) : null}
         </View>
-
-        {/* ================================= */}
-        {/* RIGHT SIDE */}
-        {/* ================================= */}
 
         <View style={styles.rightSide}>
           <View
@@ -363,7 +333,6 @@ export default function ClientsScreen() {
                   : styles.inactiveDot,
               ]}
             />
-
             <Text
               style={[
                 styles.statusText,
@@ -372,9 +341,7 @@ export default function ClientsScreen() {
                   : styles.inactiveText,
               ]}
             >
-              {item.isActive
-                ? "Active"
-                : "Inactive"}
+              {item.isActive ? "Active" : "Inactive"}
             </Text>
           </View>
 
@@ -387,34 +354,21 @@ export default function ClientsScreen() {
       </Pressable>
     );
   };
-
-  // ========================================
-  // EMPTY STATE
-  // ========================================
-
-  const renderEmpty = () => {
-    if (loading) {
-      return null;
-    }
+    const renderEmpty = () => {
+    if (loading) return null;
 
     return (
       <View style={styles.empty}>
         <View style={styles.emptyIcon}>
           <Ionicons
-            name={
-              search.trim()
-                ? "search-outline"
-                : "people-outline"
-            }
+            name={search.trim() ? "search-outline" : "people-outline"}
             size={38}
             color="#A93650"
           />
         </View>
 
         <Text style={styles.emptyTitle}>
-          {search.trim()
-            ? "No Clients Found"
-            : "No Clients Yet"}
+          {search.trim() ? "No Clients Found" : "No Clients Yet"}
         </Text>
 
         <Text style={styles.emptyText}>
@@ -428,85 +382,75 @@ export default function ClientsScreen() {
             onPress={clearSearch}
             style={styles.emptyButton}
           >
-            <Text style={styles.emptyButtonText}>
-              Clear Search
-            </Text>
+            <Text style={styles.emptyButtonText}>Clear Search</Text>
           </Pressable>
         ) : (
           <Pressable
-            onPress={() =>
-              router.push("/clients/add-client")
-            }
+            onPress={() => router.push("/clients/add-client")}
             style={styles.emptyButton}
           >
-            <Ionicons
-              name="add"
-              size={18}
-              color="#FFFFFF"
-            />
-
-            <Text style={styles.emptyButtonText}>
-              Add Client
-            </Text>
+            <Ionicons name="add" size={18} color="#FFFFFF" />
+            <Text style={styles.emptyButtonText}>Add Client</Text>
           </Pressable>
         )}
       </View>
     );
   };
 
-  // ========================================
-  // MAIN UI
-  // ========================================
-
   return (
     <SafeAreaView style={styles.container}>
-      {/* ================================= */}
       {/* HEADER */}
-      {/* ================================= */}
-
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.heading}>
-            Clients
-          </Text>
+          <Text style={styles.heading}>Clients</Text>
 
           <View style={styles.countRow}>
             <View style={styles.countDot} />
-
             <Text style={styles.subHeading}>
-              {totalClients}{" "}
-              {totalClients === 1
-                ? "client"
-                : "clients"}
+              {totalClients} {totalClients === 1 ? "client" : "clients"}
             </Text>
           </View>
         </View>
 
-        <Pressable
-          onPress={() =>
-            router.push("/clients/add-client")
-          }
-          style={({ pressed }) => [
-            styles.addButton,
-            pressed && styles.addButtonPressed,
-          ]}
-        >
-          <Ionicons
-            name="add"
-            size={22}
-            color="#FFFFFF"
-          />
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={handleBulkImport}
+            disabled={bulkImporting}
+            style={({ pressed }) => [
+              styles.importButton,
+              pressed && styles.buttonPressed,
+              bulkImporting && styles.disabledButton,
+            ]}
+          >
+            {bulkImporting ? (
+              <ActivityIndicator size="small" color="#A93650" />
+            ) : (
+              <Ionicons
+                name="cloud-upload-outline"
+                size={18}
+                color="#A93650"
+              />
+            )}
 
-          <Text style={styles.addButtonText}>
-            Add Client
-          </Text>
-        </Pressable>
+            <Text style={styles.importButtonText}>
+              {bulkImporting ? "Importing" : "Import"}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push("/clients/add-client")}
+            style={({ pressed }) => [
+              styles.addButton,
+              pressed && styles.addButtonPressed,
+            ]}
+          >
+            <Ionicons name="add" size={21} color="#FFFFFF" />
+            <Text style={styles.addButtonText}>Add</Text>
+          </Pressable>
+        </View>
       </View>
 
-      {/* ================================= */}
       {/* SEARCH */}
-      {/* ================================= */}
-
       <View style={styles.searchContainer}>
         <Ionicons
           name="search-outline"
@@ -547,47 +491,29 @@ export default function ClientsScreen() {
             pressed && styles.searchButtonPressed,
           ]}
         >
-          <Ionicons
-            name="search"
-            size={18}
-            color="#FFFFFF"
-          />
+          <Ionicons name="search" size={18} color="#FFFFFF" />
         </Pressable>
       </View>
 
-      {/* ================================= */}
-      {/* LIST */}
-      {/* ================================= */}
-
+      {/* CLIENT LIST */}
       {loading && clients.length === 0 ? (
         <View style={styles.loader}>
           <View style={styles.loaderCircle}>
-            <ActivityIndicator
-              size="large"
-              color="#A93650"
-            />
+            <ActivityIndicator size="large" color="#A93650" />
           </View>
 
-          <Text style={styles.loadingText}>
-            Loading clients...
-          </Text>
-
-          <Text style={styles.loadingSubText}>
-            Please wait
-          </Text>
+          <Text style={styles.loadingText}>Loading clients...</Text>
+          <Text style={styles.loadingSubText}>Please wait</Text>
         </View>
       ) : (
         <FlatList
           data={clients}
-          keyExtractor={(item, index) =>
-            item?._id || `client-${index}`
-          }
+          keyExtractor={(item, index) => item?._id || `client-${index}`}
           renderItem={renderClient}
           ListEmptyComponent={renderEmpty}
           contentContainerStyle={[
             styles.list,
-            clients.length === 0 &&
-              styles.emptyList,
+            clients.length === 0 && styles.emptyList,
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -602,10 +528,7 @@ export default function ClientsScreen() {
         />
       )}
 
-      {/* ================================= */}
       {/* PAGINATION */}
-      {/* ================================= */}
-
       {clients.length > 0 && (
         <View style={styles.pagination}>
           <View style={styles.paginationInner}>
@@ -614,7 +537,6 @@ export default function ClientsScreen() {
               size={14}
               color="#A93650"
             />
-
             <Text style={styles.paginationText}>
               Page {currentPage} of {totalPages}
             </Text>
@@ -624,21 +546,13 @@ export default function ClientsScreen() {
     </SafeAreaView>
   );
 }
-
-// ========================================
-// STYLES
-// ========================================
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFF9F7",
   },
 
-  // ======================================
   // HEADER
-  // ======================================
-
   header: {
     paddingHorizontal: 20,
     paddingTop: 45,
@@ -646,6 +560,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 10,
   },
 
   headerLeft: {
@@ -680,22 +595,49 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // ======================================
-  // ADD BUTTON
-  // ======================================
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
 
-  addButton: {
-    minHeight: 45,
-    paddingHorizontal: 16,
-    borderRadius: 24,
-    backgroundColor: "#A93650",
-
+  importButton: {
+    minHeight: 44,
+    paddingHorizontal: 11,
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E7C6CE",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-
     gap: 5,
+  },
 
+  importButtonText: {
+    color: "#A93650",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+
+  disabledButton: {
+    opacity: 0.6,
+  },
+
+  buttonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.97 }],
+  },
+
+  addButton: {
+    minHeight: 44,
+    paddingHorizontal: 13,
+    borderRadius: 24,
+    backgroundColor: "#A93650",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
     shadowColor: "#A93650",
     shadowOffset: {
       width: 0,
@@ -717,27 +659,19 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 
-  // ======================================
   // SEARCH
-  // ======================================
-
   searchContainer: {
     marginHorizontal: 20,
     marginBottom: 12,
     height: 54,
-
     backgroundColor: "#FFFFFF",
-
     borderWidth: 1,
     borderColor: "#EEDDE1",
     borderRadius: 17,
-
     flexDirection: "row",
     alignItems: "center",
-
     paddingLeft: 15,
     paddingRight: 5,
-
     shadowColor: "#3D1B25",
     shadowOffset: {
       width: 0,
@@ -752,7 +686,6 @@ const styles = StyleSheet.create({
     flex: 1,
     height: "100%",
     marginLeft: 9,
-
     color: "#351B23",
     fontSize: 14,
   },
@@ -766,9 +699,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 13,
-
     backgroundColor: "#A93650",
-
     alignItems: "center",
     justifyContent: "center",
   },
@@ -778,10 +709,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.96 }],
   },
 
-  // ======================================
   // LIST
-  // ======================================
-
   list: {
     paddingHorizontal: 20,
     paddingTop: 5,
@@ -792,27 +720,18 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 
-  // ======================================
   // CLIENT CARD
-  // ======================================
-
   card: {
     backgroundColor: "#FFFFFF",
-
     borderRadius: 19,
-
     paddingVertical: 14,
     paddingLeft: 14,
     paddingRight: 12,
-
     marginBottom: 12,
-
     flexDirection: "row",
     alignItems: "center",
-
     borderWidth: 1,
     borderColor: "#F0E2E5",
-
     shadowColor: "#3D1B25",
     shadowOffset: {
       width: 0,
@@ -828,19 +747,13 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
   },
 
-  // ======================================
   // AVATAR
-  // ======================================
-
   avatarWrapper: {
     width: 58,
     height: 58,
     borderRadius: 29,
-
     overflow: "hidden",
-
     marginRight: 13,
-
     backgroundColor: "#F8DDE2",
   },
 
@@ -852,9 +765,7 @@ const styles = StyleSheet.create({
   avatarFallback: {
     width: "100%",
     height: "100%",
-
     backgroundColor: "#F8DDE2",
-
     alignItems: "center",
     justifyContent: "center",
   },
@@ -865,10 +776,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 
-  // ======================================
-  // INFO
-  // ======================================
-
+  // CLIENT INFO
   clientInfo: {
     flex: 1,
     minWidth: 0,
@@ -913,10 +821,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
 
-  // ======================================
-  // RIGHT
-  // ======================================
-
+  // RIGHT SIDE
   rightSide: {
     alignItems: "flex-end",
     justifyContent: "center",
@@ -928,7 +833,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 5,
     borderRadius: 20,
-
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
@@ -969,10 +873,7 @@ const styles = StyleSheet.create({
     color: "#87616B",
   },
 
-  // ======================================
   // LOADING
-  // ======================================
-
   loader: {
     flex: 1,
     alignItems: "center",
@@ -983,9 +884,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-
     backgroundColor: "#F9E3E7",
-
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1003,29 +902,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
-  // ======================================
-  // EMPTY
-  // ======================================
-
+  // EMPTY STATE
   empty: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-
     paddingHorizontal: 38,
   },
 
   emptyIcon: {
     width: 82,
     height: 82,
-
     borderRadius: 41,
-
     backgroundColor: "#F9E3E7",
-
     alignItems: "center",
     justifyContent: "center",
-
     marginBottom: 18,
   },
 
@@ -1038,30 +929,21 @@ const styles = StyleSheet.create({
 
   emptyText: {
     marginTop: 8,
-
     color: "#967B82",
-
     fontSize: 13,
     lineHeight: 20,
-
     textAlign: "center",
   },
 
   emptyButton: {
     marginTop: 21,
-
     backgroundColor: "#A93650",
-
     paddingHorizontal: 22,
     paddingVertical: 12,
-
     borderRadius: 24,
-
     flexDirection: "row",
     alignItems: "center",
-
     gap: 5,
-
     shadowColor: "#A93650",
     shadowOffset: {
       width: 0,
@@ -1078,25 +960,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  // ======================================
   // PAGINATION
-  // ======================================
-
   pagination: {
     position: "absolute",
     bottom: 15,
     alignSelf: "center",
-
     backgroundColor: "#FFFFFF",
-
     paddingHorizontal: 15,
     paddingVertical: 8,
-
     borderRadius: 20,
-
     borderWidth: 1,
     borderColor: "#F0E2E5",
-
     shadowColor: "#3D1B25",
     shadowOffset: {
       width: 0,

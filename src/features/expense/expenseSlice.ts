@@ -1,8 +1,11 @@
+
 import {
   createAsyncThunk,
   createSlice,
   PayloadAction,
 } from "@reduxjs/toolkit";
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type { RootState } from "../../store";
 
@@ -41,89 +44,57 @@ export type ExpensePeriod =
 
 export interface Expense {
   _id: string;
-
   title: string;
-
   category: ExpenseCategory;
-
   amount: number;
-
   paymentMethod: ExpensePaymentMethod;
-
   paidTo: string;
-
   expenseDate: string;
-
   notes: string;
-
   status: ExpenseStatus;
-
   active: boolean;
-
   createdAt?: string;
-
   updatedAt?: string;
 }
 
 export interface CreateExpensePayload {
   title: string;
-
   category: ExpenseCategory;
-
   amount: number;
-
   paymentMethod?: ExpensePaymentMethod;
-
   paidTo?: string;
-
   expenseDate?: string;
-
   notes?: string;
-
   status?: ExpenseStatus;
 }
 
 export interface UpdateExpensePayload {
   id: string;
-
   data: Partial<CreateExpensePayload>;
 }
 
 export interface CategoryExpenseSummary {
   category: string;
-
   total: number;
-
   count: number;
 }
 
 export interface PaymentExpenseSummary {
   paymentMethod: string;
-
   total: number;
-
   count: number;
 }
 
 export interface ExpenseSummary {
   success: boolean;
-
   period: string;
-
   from: string;
-
   to: string;
-
   totalExpense: number;
-
   totalExpenses: number;
-
   paidExpense: number;
-
   pendingExpense: number;
-
   byCategory: CategoryExpenseSummary[];
-
   byPaymentMethod: PaymentExpenseSummary[];
 }
 
@@ -133,31 +104,22 @@ export interface ExpenseSummary {
 
 interface ExpensesResponse {
   success: boolean;
-
   count: number;
-
   total: number;
-
   page: number;
-
   limit: number;
-
   totalAmount: number;
-
   expenses: Expense[];
 }
 
 interface ExpenseResponse {
   success: boolean;
-
   message?: string;
-
   expense: Expense;
 }
 
 interface DeleteExpenseResponse {
   success: boolean;
-
   message: string;
 }
 
@@ -169,37 +131,25 @@ interface SummaryResponse extends ExpenseSummary {}
 
 interface ExpenseState {
   expenses: Expense[];
-
   selectedExpense: Expense | null;
-
   summary: ExpenseSummary | null;
 
   totalAmount: number;
-
   totalExpenses: number;
 
   currentPage: number;
-
   totalPages: number;
 
   loading: boolean;
-
   creating: boolean;
-
   updating: boolean;
-
   deleting: boolean;
-
   summaryLoading: boolean;
 
   error: string | null;
-
   createError: string | null;
-
   updateError: string | null;
-
   deleteError: string | null;
-
   summaryError: string | null;
 }
 
@@ -209,37 +159,25 @@ interface ExpenseState {
 
 const initialState: ExpenseState = {
   expenses: [],
-
   selectedExpense: null,
-
   summary: null,
 
   totalAmount: 0,
-
   totalExpenses: 0,
 
   currentPage: 1,
-
   totalPages: 1,
 
   loading: false,
-
   creating: false,
-
   updating: false,
-
   deleting: false,
-
   summaryLoading: false,
 
   error: null,
-
   createError: null,
-
   updateError: null,
-
   deleteError: null,
-
   summaryError: null,
 };
 
@@ -259,6 +197,30 @@ const getErrorMessage = (
 };
 
 // ========================================
+// AUTH HEADER HELPER
+// ========================================
+
+const getAuthHeaders = async () => {
+  const token = await AsyncStorage.getItem("token");
+
+  console.log(
+    "EXPENSE AUTH TOKEN:",
+    token ? "FOUND" : "MISSING"
+  );
+
+  return {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+
+    ...(token
+      ? {
+          Authorization: `Bearer ${token}`,
+        }
+      : {}),
+  };
+};
+
+// ========================================
 // GET ALL EXPENSES
 // GET /api/expenses
 // ========================================
@@ -267,19 +229,12 @@ export const fetchExpenses = createAsyncThunk<
   ExpensesResponse,
   {
     category?: string;
-
     status?: string;
-
     active?: boolean;
-
     from?: string;
-
     to?: string;
-
     search?: string;
-
     page?: number;
-
     limit?: number;
   } | undefined,
   { rejectValue: string }
@@ -359,12 +314,12 @@ export const fetchExpenses = createAsyncThunk<
         url
       );
 
+      const headers =
+        await getAuthHeaders();
+
       const response = await fetch(url, {
         method: "GET",
-
-        headers: {
-          Accept: "application/json",
-        },
+        headers,
       });
 
       const data =
@@ -412,8 +367,19 @@ export const fetchExpenseById =
         const url =
           `${API_URL}/expenses/${id}`;
 
+        console.log(
+          "GET EXPENSE REQUEST:",
+          url
+        );
+
+        const headers =
+          await getAuthHeaders();
+
         const response =
-          await fetch(url);
+          await fetch(url, {
+            method: "GET",
+            headers,
+          });
 
         const data =
           await response.json();
@@ -468,13 +434,8 @@ export const createExpense =
             {
               method: "POST",
 
-              headers: {
-                "Content-Type":
-                  "application/json",
-
-                Accept:
-                  "application/json",
-              },
+              headers:
+                await getAuthHeaders(),
 
               body: JSON.stringify({
                 title:
@@ -562,17 +523,10 @@ export const updateExpense =
             {
               method: "PATCH",
 
-              headers: {
-                "Content-Type":
-                  "application/json",
+              headers:
+                await getAuthHeaders(),
 
-                Accept:
-                  "application/json",
-              },
-
-              body: JSON.stringify(
-                data
-              ),
+              body: JSON.stringify(data),
             }
           );
 
@@ -610,11 +564,7 @@ export const updateExpense =
 
 export const deleteExpense =
   createAsyncThunk<
-    {
-      success: boolean;
-
-      message: string;
-
+    DeleteExpenseResponse & {
       id: string;
     },
     string,
@@ -635,10 +585,8 @@ export const deleteExpense =
             {
               method: "DELETE",
 
-              headers: {
-                Accept:
-                  "application/json",
-              },
+              headers:
+                await getAuthHeaders(),
             }
           );
 
@@ -656,7 +604,6 @@ export const deleteExpense =
 
         return {
           ...data,
-
           id,
         };
       } catch (error: any) {
@@ -683,9 +630,7 @@ export const fetchExpenseSummary =
     SummaryResponse,
     {
       period?: ExpensePeriod;
-
       from?: string;
-
       to?: string;
     } | undefined,
     { rejectValue: string }
@@ -732,7 +677,12 @@ export const fetchExpenseSummary =
         );
 
         const response =
-          await fetch(url);
+          await fetch(url, {
+            method: "GET",
+
+            headers:
+              await getAuthHeaders(),
+          });
 
         const data =
           await response.json();
@@ -811,52 +761,41 @@ const expenseSlice = createSlice({
       state
     ) => {
       state.expenses = [];
-
       state.selectedExpense = null;
-
       state.summary = null;
 
       state.totalAmount = 0;
-
       state.totalExpenses = 0;
 
       state.currentPage = 1;
-
       state.totalPages = 1;
 
       state.loading = false;
-
       state.creating = false;
-
       state.updating = false;
-
       state.deleting = false;
-
       state.summaryLoading = false;
 
       state.error = null;
-
       state.createError = null;
-
       state.updateError = null;
-
       state.deleteError = null;
-
       state.summaryError = null;
     },
   },
 
   extraReducers: (builder) => {
+
     // ========================================
     // GET EXPENSES
     // ========================================
 
     builder
+
       .addCase(
         fetchExpenses.pending,
         (state) => {
           state.loading = true;
-
           state.error = null;
         }
       )
@@ -929,11 +868,11 @@ const expenseSlice = createSlice({
     // ========================================
 
     builder
+
       .addCase(
         fetchExpenseById.pending,
         (state) => {
           state.loading = true;
-
           state.error = null;
         }
       )
@@ -972,11 +911,11 @@ const expenseSlice = createSlice({
     // ========================================
 
     builder
+
       .addCase(
         createExpense.pending,
         (state) => {
           state.creating = true;
-
           state.createError = null;
         }
       )
@@ -988,7 +927,6 @@ const expenseSlice = createSlice({
           action
         ) => {
           state.creating = false;
-
           state.createError = null;
 
           if (
@@ -1028,11 +966,11 @@ const expenseSlice = createSlice({
     // ========================================
 
     builder
+
       .addCase(
         updateExpense.pending,
         (state) => {
           state.updating = true;
-
           state.updateError = null;
         }
       )
@@ -1044,7 +982,6 @@ const expenseSlice = createSlice({
           action
         ) => {
           state.updating = false;
-
           state.updateError = null;
 
           const updated =
@@ -1108,11 +1045,11 @@ const expenseSlice = createSlice({
     // ========================================
 
     builder
+
       .addCase(
         deleteExpense.pending,
         (state) => {
           state.deleting = true;
-
           state.deleteError = null;
         }
       )
@@ -1124,7 +1061,6 @@ const expenseSlice = createSlice({
           action
         ) => {
           state.deleting = false;
-
           state.deleteError = null;
 
           const deleted =
@@ -1183,12 +1119,11 @@ const expenseSlice = createSlice({
     // ========================================
 
     builder
+
       .addCase(
         fetchExpenseSummary.pending,
         (state) => {
-          state.summaryLoading =
-            true;
-
+          state.summaryLoading = true;
           state.summaryError = null;
         }
       )
@@ -1199,8 +1134,7 @@ const expenseSlice = createSlice({
           state,
           action
         ) => {
-          state.summaryLoading =
-            false;
+          state.summaryLoading = false;
 
           state.summary =
             action.payload;
@@ -1215,8 +1149,7 @@ const expenseSlice = createSlice({
           state,
           action
         ) => {
-          state.summaryLoading =
-            false;
+          state.summaryLoading = false;
 
           state.summaryError =
             action.payload ||
@@ -1232,17 +1165,11 @@ const expenseSlice = createSlice({
 
 export const {
   clearExpenseError,
-
   clearCreateExpenseError,
-
   clearUpdateExpenseError,
-
   clearDeleteExpenseError,
-
   clearExpenseSummaryError,
-
   clearSelectedExpense,
-
   resetExpenseState,
 } = expenseSlice.actions;
 

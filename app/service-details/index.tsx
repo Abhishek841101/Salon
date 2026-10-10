@@ -76,7 +76,7 @@ const services = [
   {
     id: "4",
     category: "Skin",
-    name: "Glow Facial",
+    name: "COZ`E Facial",
     description:
       "A refreshing facial treatment that cleanses, hydrates and leaves your skin looking naturally fresh and radiant.",
     price: "₹899",
@@ -383,7 +383,7 @@ export default function ServiceDetailsScreen() {
 
               <View style={styles.experienceContent}>
                 <Text style={styles.experienceTitle}>
-                  Your Glow Experience
+                  Your COZ`E Experience
                 </Text>
 
                 <Text style={styles.experienceText}>

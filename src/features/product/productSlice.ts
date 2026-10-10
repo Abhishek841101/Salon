@@ -4,6 +4,8 @@ import {
   PayloadAction,
 } from "@reduxjs/toolkit";
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import type { RootState } from "../../store";
 
 // ============================================================
@@ -13,6 +15,26 @@ import type { RootState } from "../../store";
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   "http://localhost:5000/api";
+
+// ============================================================
+// AUTH HEADERS
+// ============================================================
+
+const getAuthHeaders = async () => {
+  const token =
+    await AsyncStorage.getItem("token");
+
+  return {
+    "Content-Type": "application/json",
+
+    ...(token
+      ? {
+          Authorization:
+            `Bearer ${token}`,
+        }
+      : {}),
+  };
+};
 
 // ============================================================
 // TYPES
@@ -43,12 +65,18 @@ export type Product = {
 
   stockStatus?: string;
 
+  stockValue?: number;
+
   createdAt?: string;
 
   updatedAt?: string;
 };
 
-type ProductSummary = {
+// ============================================================
+// PRODUCT SUMMARY
+// ============================================================
+
+export type ProductSummary = {
   totalProducts: number;
 
   lowStock: number;
@@ -57,6 +85,54 @@ type ProductSummary = {
 
   totalStockValue: number;
 };
+
+// ============================================================
+// BULK UPLOAD TYPES
+// ============================================================
+
+export type BulkUploadDuplicateRow = {
+  row: number;
+
+  name?: string;
+
+  reason: string;
+
+  productId?: string;
+};
+
+export type BulkUploadFailedRow = {
+  row: number;
+
+  name?: string;
+
+  message: string;
+
+  data?: Record<string, any>;
+};
+
+export type BulkUploadResult = {
+  success: boolean;
+
+  message: string;
+
+  totalRows: number;
+
+  created: number;
+
+  duplicates: number;
+
+  failed: number;
+
+  products: Product[];
+
+  duplicateRows: BulkUploadDuplicateRow[];
+
+  failedRows: BulkUploadFailedRow[];
+};
+
+// ============================================================
+// PRODUCT STATE
+// ============================================================
 
 type ProductState = {
   products: Product[];
@@ -74,6 +150,10 @@ type ProductState = {
   updating: boolean;
 
   deleting: boolean;
+
+  bulkUploading: boolean;
+
+  bulkUploadResult: BulkUploadResult | null;
 
   error: string | null;
 };
@@ -107,6 +187,10 @@ const initialState: ProductState = {
 
   deleting: false,
 
+  bulkUploading: false,
+
+  bulkUploadResult: null,
+
   error: null,
 };
 
@@ -135,7 +219,8 @@ export const getProducts = createAsyncThunk<
 
   async (params, thunkAPI) => {
     try {
-      const query = new URLSearchParams();
+      const query =
+        new URLSearchParams();
 
       if (params?.search) {
         query.append(
@@ -178,13 +263,27 @@ export const getProducts = createAsyncThunk<
             : ""
         );
 
+      const headers =
+        await getAuthHeaders();
+
       console.log(
         "PRODUCT API REQUEST:",
         url
       );
 
+      console.log(
+        "PRODUCT AUTH TOKEN:",
+        headers.Authorization
+          ? "Present"
+          : "Missing"
+      );
+
       const response =
-        await fetch(url);
+        await fetch(url, {
+          method: "GET",
+
+          headers,
+        });
 
       const data =
         await response.json();
@@ -226,9 +325,17 @@ export const getProductById =
 
     async (id, thunkAPI) => {
       try {
+        const headers =
+          await getAuthHeaders();
+
         const response =
           await fetch(
-            `${API_URL}/products/${id}`
+            `${API_URL}/products/${id}`,
+            {
+              method: "GET",
+
+              headers,
+            }
           );
 
         const data =
@@ -281,6 +388,10 @@ export type CreateProductPayload = {
   notes?: string;
 };
 
+// ============================================================
+// CREATE PRODUCT THUNK
+// ============================================================
+
 export const createProduct =
   createAsyncThunk<
     Product,
@@ -296,16 +407,23 @@ export const createProduct =
           payload
         );
 
+        const headers =
+          await getAuthHeaders();
+
+        console.log(
+          "CREATE PRODUCT AUTH TOKEN:",
+          headers.Authorization
+            ? "Present"
+            : "Missing"
+        );
+
         const response =
           await fetch(
             `${API_URL}/products`,
             {
               method: "POST",
 
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
+              headers,
 
               body: JSON.stringify({
                 name:
@@ -376,6 +494,90 @@ export const createProduct =
   );
 
 // ============================================================
+// BULK UPLOAD PRODUCTS
+// POST /api/products/bulk-upload
+// ============================================================
+
+export const bulkUploadProducts =
+  createAsyncThunk<
+    BulkUploadResult,
+    FormData,
+    { rejectValue: string }
+  >(
+    "products/bulkUploadProducts",
+
+    async (formData, thunkAPI) => {
+      try {
+        console.log(
+          "========================================"
+        );
+
+        console.log(
+          "BULK PRODUCT UPLOAD REQUEST"
+        );
+
+        console.log(
+          "========================================"
+        );
+
+        const token =
+          await AsyncStorage.getItem(
+            "token"
+          );
+
+        const headers: Record<
+          string,
+          string
+        > = {};
+
+        if (token) {
+          headers.Authorization =
+            `Bearer ${token}`;
+        }
+
+        const response =
+          await fetch(
+            `${API_URL}/products/bulk-upload`,
+            {
+              method: "POST",
+
+              headers,
+
+              body: formData,
+            }
+          );
+
+        const data =
+          await response.json();
+
+        console.log(
+          "BULK PRODUCT UPLOAD RESPONSE:",
+          data
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            data?.message ||
+              "Failed to upload products"
+          );
+        }
+
+        return data;
+      } catch (error: any) {
+        console.error(
+          "BULK PRODUCT UPLOAD ERROR:",
+          error
+        );
+
+        return thunkAPI.rejectWithValue(
+          error?.message ||
+            "Failed to upload products"
+        );
+      }
+    }
+  );
+
+// ============================================================
 // UPDATE PRODUCT
 // PATCH /api/products/:id
 // ============================================================
@@ -401,16 +603,28 @@ export const updateProduct =
       thunkAPI
     ) => {
       try {
+        const headers =
+          await getAuthHeaders();
+
+        console.log(
+          "UPDATE PRODUCT REQUEST:",
+          id
+        );
+
+        console.log(
+          "UPDATE PRODUCT AUTH TOKEN:",
+          headers.Authorization
+            ? "Present"
+            : "Missing"
+        );
+
         const response =
           await fetch(
             `${API_URL}/products/${id}`,
             {
               method: "PATCH",
 
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
+              headers,
 
               body: JSON.stringify(
                 updateData
@@ -458,11 +672,28 @@ export const deleteProduct =
 
     async (id, thunkAPI) => {
       try {
+        const headers =
+          await getAuthHeaders();
+
+        console.log(
+          "DELETE PRODUCT REQUEST:",
+          id
+        );
+
+        console.log(
+          "DELETE PRODUCT AUTH TOKEN:",
+          headers.Authorization
+            ? "Present"
+            : "Missing"
+        );
+
         const response =
           await fetch(
             `${API_URL}/products/${id}`,
             {
               method: "DELETE",
+
+              headers,
             }
           );
 
@@ -506,9 +737,29 @@ export const getProductSummary =
 
     async (_, thunkAPI) => {
       try {
+        const headers =
+          await getAuthHeaders();
+
+        console.log(
+          "PRODUCT SUMMARY REQUEST:",
+          `${API_URL}/products/summary`
+        );
+
+        console.log(
+          "PRODUCT SUMMARY AUTH TOKEN:",
+          headers.Authorization
+            ? "Present"
+            : "Missing"
+        );
+
         const response =
           await fetch(
-            `${API_URL}/products/summary`
+            `${API_URL}/products/summary`,
+            {
+              method: "GET",
+
+              headers,
+            }
           );
 
         const data =
@@ -547,11 +798,19 @@ const productSlice =
     initialState,
 
     reducers: {
+      // ======================================================
+      // CLEAR PRODUCT ERROR
+      // ======================================================
+
       clearProductError: (
         state
       ) => {
         state.error = null;
       },
+
+      // ======================================================
+      // CLEAR SELECTED PRODUCT
+      // ======================================================
 
       clearSelectedProduct: (
         state
@@ -559,6 +818,10 @@ const productSlice =
         state.selectedProduct =
           null;
       },
+
+      // ======================================================
+      // SET SELECTED PRODUCT
+      // ======================================================
 
       setSelectedProduct: (
         state,
@@ -568,10 +831,25 @@ const productSlice =
           action.payload;
       },
 
+      // ======================================================
+      // CLEAR PRODUCTS
+      // ======================================================
+
       clearProducts: (
         state
       ) => {
         state.products = [];
+      },
+
+      // ======================================================
+      // CLEAR BULK UPLOAD RESULT
+      // ======================================================
+
+      clearBulkUploadResult: (
+        state
+      ) => {
+        state.bulkUploadResult =
+          null;
       },
     },
 
@@ -587,6 +865,7 @@ const productSlice =
           getProducts.pending,
           (state) => {
             state.loading = true;
+
             state.error = null;
           }
         )
@@ -627,6 +906,7 @@ const productSlice =
           getProductById.pending,
           (state) => {
             state.loading = true;
+
             state.error = null;
           }
         )
@@ -667,6 +947,7 @@ const productSlice =
           createProduct.pending,
           (state) => {
             state.creating = true;
+
             state.error = null;
           }
         )
@@ -703,6 +984,64 @@ const productSlice =
         );
 
       // ======================================================
+      // BULK UPLOAD PRODUCTS
+      // ======================================================
+
+      builder
+        .addCase(
+          bulkUploadProducts.pending,
+          (state) => {
+            state.bulkUploading =
+              true;
+
+            state.error = null;
+
+            state.bulkUploadResult =
+              null;
+          }
+        )
+
+        .addCase(
+          bulkUploadProducts.fulfilled,
+          (
+            state,
+            action
+          ) => {
+            state.bulkUploading =
+              false;
+
+            state.bulkUploadResult =
+              action.payload;
+
+            if (
+              action.payload.products &&
+              action.payload.products
+                .length > 0
+            ) {
+              state.products = [
+                ...action.payload.products,
+                ...state.products,
+              ];
+            }
+          }
+        )
+
+        .addCase(
+          bulkUploadProducts.rejected,
+          (
+            state,
+            action
+          ) => {
+            state.bulkUploading =
+              false;
+
+            state.error =
+              action.payload ||
+              "Failed to upload products";
+          }
+        );
+
+      // ======================================================
       // UPDATE PRODUCT
       // ======================================================
 
@@ -711,6 +1050,7 @@ const productSlice =
           updateProduct.pending,
           (state) => {
             state.updating = true;
+
             state.error = null;
           }
         )
@@ -731,9 +1071,8 @@ const productSlice =
               );
 
             if (index !== -1) {
-              state.products[
-                index
-              ] = action.payload;
+              state.products[index] =
+                action.payload;
             }
 
             state.selectedProduct =
@@ -764,6 +1103,7 @@ const productSlice =
           deleteProduct.pending,
           (state) => {
             state.deleting = true;
+
             state.error = null;
           }
         )
@@ -863,8 +1203,8 @@ export const {
   clearSelectedProduct,
   setSelectedProduct,
   clearProducts,
-} =
-  productSlice.actions;
+  clearBulkUploadResult,
+} = productSlice.actions;
 
 // ============================================================
 // SELECTORS
@@ -875,26 +1215,45 @@ export const selectProducts = (
 ) =>
   state.products?.products ?? [];
 
+// ============================================================
+// SELECTED PRODUCT
+// ============================================================
+
 export const selectSelectedProduct = (
   state: RootState
 ) =>
   state.products
     ?.selectedProduct ?? null;
 
+// ============================================================
+// PRODUCT SUMMARY
+// ============================================================
+
 export const selectProductSummary = (
   state: RootState
 ) =>
   state.products?.summary ?? {
     totalProducts: 0,
+
     lowStock: 0,
+
     outOfStock: 0,
+
     totalStockValue: 0,
   };
+
+// ============================================================
+// PRODUCT LOADING
+// ============================================================
 
 export const selectProductLoading = (
   state: RootState
 ) =>
   state.products?.loading ?? false;
+
+// ============================================================
+// SUMMARY LOADING
+// ============================================================
 
 export const selectProductSummaryLoading =
   (
@@ -903,20 +1262,56 @@ export const selectProductSummaryLoading =
     state.products
       ?.summaryLoading ?? false;
 
+// ============================================================
+// PRODUCT CREATING
+// ============================================================
+
 export const selectProductCreating = (
   state: RootState
 ) =>
   state.products?.creating ?? false;
+
+// ============================================================
+// PRODUCT UPDATING
+// ============================================================
 
 export const selectProductUpdating = (
   state: RootState
 ) =>
   state.products?.updating ?? false;
 
+// ============================================================
+// PRODUCT DELETING
+// ============================================================
+
 export const selectProductDeleting = (
   state: RootState
 ) =>
   state.products?.deleting ?? false;
+
+// ============================================================
+// BULK UPLOADING
+// ============================================================
+
+export const selectProductBulkUploading = (
+  state: RootState
+) =>
+  state.products?.bulkUploading ??
+  false;
+
+// ============================================================
+// BULK UPLOAD RESULT
+// ============================================================
+
+export const selectProductBulkUploadResult = (
+  state: RootState
+) =>
+  state.products?.bulkUploadResult ??
+  null;
+
+// ============================================================
+// PRODUCT ERROR
+// ============================================================
 
 export const selectProductError = (
   state: RootState

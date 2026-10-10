@@ -168,8 +168,8 @@ const NotificationsScreen = () => {
 
     const message =
       notification.type === "birthday"
-        ? `Hello ${client.name}, Glow Salon wishes you a very Happy Birthday!`
-        : `Hello ${client.name}, Glow Salon wishes you a very Happy Anniversary!`;
+        ? `Hello ${client.name}, GLOW Salon wishes you a very Happy Birthday!`
+        : `Hello ${client.name},  GLOW Salon wishes you a very Happy Anniversary!`;
 
     const url = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
       message

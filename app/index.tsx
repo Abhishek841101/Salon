@@ -61,7 +61,7 @@ export default function SplashScreen() {
           </View>
 
           <Text style={styles.logo}>
-            Glow Salon
+          GLOW Salon
           </Text>
 
           <Text style={styles.logoSub}>

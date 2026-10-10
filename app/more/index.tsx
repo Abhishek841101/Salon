@@ -1,18 +1,63 @@
+
 import React from "react";
+
 import {
   Alert,
   Pressable,
   SafeAreaView,
   ScrollView,
   StatusBar,
-  StyleSheet,
+  StyleSheet,Image,
   Text,
   View,
 } from "react-native";
+
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useDispatch } from "react-redux";
 
+import { logoutUser } from "../../src/features/auth/authSlice";
+import Logo from "../../assets/images/logo.png";
 export default function MoreScreen() {
+  const dispatch = useDispatch<any>();
+
+  // ============================================================
+  // LOGOUT
+  // ============================================================
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Clear Redux + AsyncStorage
+              await dispatch(logoutUser()).unwrap();
+
+              // IMPORTANT:
+              // Actual login route is /auth/login
+              router.replace("/auth/login");
+            } catch (error) {
+              console.error("LOGOUT ERROR:", error);
+
+              // Even if logout thunk has an issue,
+              // still send user to login
+              router.replace("/auth/login");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar
@@ -21,11 +66,22 @@ export default function MoreScreen() {
       />
 
       <View style={styles.container}>
+
         {/* =====================================================
             HEADER
         ===================================================== */}
 
         <View style={styles.header}>
+          <View>
+            <Text style={styles.eyebrow}>
+              GLOW SALON
+            </Text>
+
+            <Text style={styles.title}>
+              More
+            </Text>
+          </View>
+
          
         </View>
 
@@ -33,32 +89,39 @@ export default function MoreScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
         >
+
           {/* =====================================================
               PROFILE CARD
           ===================================================== */}
 
           <Pressable
-            style={styles.profileCard}
-            onPress={() => router.push("/profile")}
-          >
-            <View style={styles.profileAvatar}>
-              <Text style={styles.profileAvatarText}>S</Text>
-            </View>
+  style={styles.profileCard}
+  onPress={() => router.push("/profile")}
+>
+  <View style={styles.profileAvatar}>
+    <Image
+      source={Logo}
+      style={styles.profileAvatarLogo}
+      resizeMode="contain"
+    />
+  </View>
 
-            <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>
-                Salon Admin
-              </Text>
+  <View style={styles.profileInfo}>
+    <Text style={styles.profileName}>
+      Salon Admin
+    </Text>
 
-              <Text style={styles.profileRole}>
-                Owner • Glow Salon
-              </Text>
-            </View>
+    <Text style={styles.profileRole}>
+      Owner • COZ`E Salon
+    </Text>
+  </View>
 
-            <View style={styles.profileArrow}>
-              <Text style={styles.profileArrowText}>›</Text>
-            </View>
-          </Pressable>
+  <View style={styles.profileArrow}>
+    <Text style={styles.profileArrowText}>
+      ›
+    </Text>
+  </View>
+</Pressable>
 
           {/* =====================================================
               QUICK ACCESS
@@ -97,34 +160,39 @@ export default function MoreScreen() {
               onPress={() => router.push("/services")}
             />
           </View>
+
+          {/* =====================================================
+              PRODUCTS
+          ===================================================== */}
+
           <Pressable
-  style={styles.productsCard}
-  onPress={() => router.push("/products")}
->
-  <View style={styles.productsIcon}>
-    <Ionicons
-      name="cube-outline"
-      size={26}
-      color="#4F46E5"
-    />
-  </View>
+            style={styles.productsCard}
+            onPress={() => router.push("/products")}
+          >
+            <View style={styles.productsIcon}>
+              <Ionicons
+                name="cube-outline"
+                size={26}
+                color="#4F46E5"
+              />
+            </View>
 
-  <View style={{ flex: 1 }}>
-    <Text style={styles.productsTitle}>
-      Products
-    </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.productsTitle}>
+                Products
+              </Text>
 
-    <Text style={styles.productsSubtitle}>
-      Manage salon inventory & stock
-    </Text>
-  </View>
+              <Text style={styles.productsSubtitle}>
+                Manage salon inventory & stock
+              </Text>
+            </View>
 
-  <Ionicons
-    name="chevron-forward"
-    size={22}
-    color="#94A3B8"
-  />
-</Pressable>
+            <Ionicons
+              name="chevron-forward"
+              size={22}
+              color="#94A3B8"
+            />
+          </Pressable>
 
           {/* =====================================================
               MANAGEMENT
@@ -135,40 +203,40 @@ export default function MoreScreen() {
           </Text>
 
           <View style={styles.menuCard}>
-  <MenuItem
-    icon="♙"
-    title="Staff & Stylists"
-    subtitle="Manage your salon team"
-    onPress={() => router.push("/staff")}
-  />
+            <MenuItem
+              icon="♙"
+              title="Staff & Stylists"
+              subtitle="Manage your salon team"
+              onPress={() => router.push("/staff")}
+            />
 
-  <Divider />
+            <Divider />
 
-  <MenuItem
-    icon="✦"
-    title="Services"
-    subtitle="Add, edit and manage services"
-    onPress={() => router.push("/services")}
-  />
+            <MenuItem
+              icon="✦"
+              title="Services"
+              subtitle="Add, edit and manage services"
+              onPress={() => router.push("/services")}
+            />
 
-  <Divider />
+            <Divider />
 
-  <MenuItem
-    icon="♙"
-    title="Clients"
-    subtitle="Manage customer profiles"
-    onPress={() => router.push("/clients")}
-  />
+            <MenuItem
+              icon="♙"
+              title="Clients"
+              subtitle="Manage customer profiles"
+              onPress={() => router.push("/clients")}
+            />
 
-  <Divider />
+            <Divider />
 
-  <MenuItem
-    icon="▣"
-    title="Bookings"
-    subtitle="Appointments and booking status"
-    onPress={() => router.push("/bookings")}
-  />
-</View>
+            <MenuItem
+              icon="▣"
+              title="Bookings"
+              subtitle="Appointments and booking status"
+              onPress={() => router.push("/bookings")}
+            />
+          </View>
 
           {/* =====================================================
               BUSINESS
@@ -185,24 +253,26 @@ export default function MoreScreen() {
               subtitle="View bills and invoices"
               onPress={() => router.push("/billing")}
             />
-<Divider />
 
-<MenuItem
-  icon="₹"
-  title="Expenses"
-  subtitle="Track salon expenses & spending"
-  onPress={() => router.push("/expenses")}
-/>
-           <Divider />
+            <Divider />
 
-<MenuItem
-  icon="▤"
-  title="Reports"
-  subtitle="Sales and salon performance"
-  onPress={() => router.push("/reports")}
-/>
+            <MenuItem
+              icon="₹"
+              title="Expenses"
+              subtitle="Track salon expenses & spending"
+              onPress={() => router.push("/expenses")}
+            />
 
-<Divider />
+            <Divider />
+
+            <MenuItem
+              icon="▤"
+              title="Reports"
+              subtitle="Sales and salon performance"
+              onPress={() => router.push("/reports")}
+            />
+
+            <Divider />
 
             <MenuItem
               icon="⌁"
@@ -238,24 +308,25 @@ export default function MoreScreen() {
               }
             />
 
-        <Divider />
+            <Divider />
 
-<MenuItem
-  icon="⌕"
-  title="Notifications"
-  subtitle="Birthday & anniversary reminders"
-  onPress={() => router.push("/notifications")}
-/>
+            <MenuItem
+              icon="⌕"
+              title="Notifications"
+              subtitle="Birthday & anniversary reminders"
+              onPress={() => router.push("/notifications")}
+            />
 
-<Divider />
-<MenuItem
-  icon="₹"
-  title="Salary"
-  subtitle="Manage staff salary & payments"
-  onPress={() => router.push("/salary")}
-/>
+            <Divider />
 
-<Divider />
+            <MenuItem
+              icon="₹"
+              title="Salary"
+              subtitle="Manage staff salary & payments"
+              onPress={() => router.push("/salary")}
+            />
+
+            <Divider />
 
             <MenuItem
               icon="🔐"
@@ -280,7 +351,9 @@ export default function MoreScreen() {
 
           <View style={styles.supportCard}>
             <View style={styles.supportIcon}>
-              <Text style={styles.supportIconText}>?</Text>
+              <Text style={styles.supportIconText}>
+                ?
+              </Text>
             </View>
 
             <View style={styles.supportContent}>
@@ -314,7 +387,7 @@ export default function MoreScreen() {
 
           <View style={styles.versionBox}>
             <Text style={styles.versionText}>
-              Glow Salon
+              GLOW Salon
             </Text>
 
             <Text style={styles.versionNumber}>
@@ -328,28 +401,12 @@ export default function MoreScreen() {
 
           <Pressable
             style={styles.logoutButton}
-            onPress={() => {
-              Alert.alert(
-                "Logout",
-                "Are you sure you want to logout?",
-                [
-                  {
-                    text: "Cancel",
-                    style: "cancel",
-                  },
-                  {
-                    text: "Logout",
-                    style: "destructive",
-                    onPress: () => {
-                      router.replace("/login");
-                    },
-                  },
-                ]
-              );
-            }}
+            onPress={handleLogout}
           >
             <View style={styles.logoutIconBox}>
-              <Text style={styles.logoutIcon}>↪</Text>
+              <Text style={styles.logoutIcon}>
+                ↪
+              </Text>
             </View>
 
             <Text style={styles.logoutText}>
@@ -634,7 +691,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
+profileAvatarLogo: {
+  width: 45,
+  height: 49,
+  borderRadius: 9,
+},
   profileAvatarText: {
     color: "#7E243A",
     fontSize: 20,
@@ -979,36 +1040,39 @@ const styles = StyleSheet.create({
     color: "#8A243B",
     fontWeight: "800",
   },
+
+  /* PRODUCTS */
+
   productsCard: {
-  flexDirection: "row",
-  alignItems: "center",
-  backgroundColor: "#FFFFFF",
-  borderRadius: 18,
-  padding: 16,
-  marginTop: 12,
-  borderWidth: 1,
-  borderColor: "#E2E8F0",
-},
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
 
-productsIcon: {
-  width: 52,
-  height: 52,
-  borderRadius: 15,
-  backgroundColor: "#EEF2FF",
-  alignItems: "center",
-  justifyContent: "center",
-  marginRight: 13,
-},
+  productsIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 15,
+    backgroundColor: "#EEF2FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 13,
+  },
 
-productsTitle: {
-  fontSize: 16,
-  fontWeight: "800",
-  color: "#0F172A",
-},
+  productsTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
 
-productsSubtitle: {
-  fontSize: 12,
-  color: "#64748B",
-  marginTop: 4,
-},
+  productsSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 4,
+  },
 });

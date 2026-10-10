@@ -1,4 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
   SafeAreaView,
   ScrollView,
@@ -8,32 +15,54 @@ import {
   View,
   ActivityIndicator,
 } from "react-native";
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+
+// ========================================
+// COLORS
+// ========================================
 
 const COLORS = {
   background: "#F8F2EF",
   card: "#FFFFFF",
+
   primary: "#8A243B",
   primaryDark: "#702038",
   primarySoft: "#F8E8E6",
   primaryVerySoft: "#FFF7F5",
+
   text: "#33282C",
   textDark: "#403337",
   textMuted: "#95868B",
   textLight: "#A4979B",
+
   border: "#E7DAD7",
   divider: "#EFE5E2",
+
   success: "#2E8B57",
   successSoft: "#EAF6EF",
+
   warning: "#C77700",
   warningSoft: "#FFF4E3",
+
   danger: "#C0392B",
   dangerSoft: "#FDECEA",
+
   white: "#FFFFFF",
 };
 
-type Period = "Today" | "7 Days" | "This Month" | "This Year";
+// ========================================
+// TYPES
+// ========================================
+
+type Period =
+  | "Today"
+  | "7 Days"
+  | "This Month"
+  | "This Year";
 
 type RevenueResponse = {
   success?: boolean;
@@ -64,28 +93,79 @@ type ExpenseResponse = {
   message?: string;
 };
 
+// ========================================
+// API URL
+// ========================================
+
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   "https://salon-backend-49vk.onrender.com/api";
 
-const money = (value: number) =>
-  `₹${Math.max(0, Number(value || 0)).toLocaleString("en-IN")}`;
+// ========================================
+// HELPERS
+// ========================================
 
-const getPeriodParam = (period: Period) => {
+const money = (value: number) =>
+  `₹${Math.max(
+    0,
+    Number(value || 0)
+  ).toLocaleString("en-IN")}`;
+
+// ========================================
+// AUTH HEADERS
+// ========================================
+
+const getAuthHeaders = async () => {
+  const token =
+    await AsyncStorage.getItem("token");
+
+  console.log(
+    "REPORT AUTH TOKEN:",
+    token ? "FOUND" : "MISSING"
+  );
+
+  return {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+
+    ...(token
+      ? {
+          Authorization: `Bearer ${token}`,
+        }
+      : {}),
+  };
+};
+
+// ========================================
+// PERIOD PARAM
+// ========================================
+
+const getPeriodParam = (
+  period: Period
+) => {
   switch (period) {
     case "Today":
       return "today";
+
     case "7 Days":
       return "week";
+
     case "This Year":
       return "year";
+
     case "This Month":
     default:
-      return "month";
+      return "today";
   }
 };
 
-const getDateRange = (period: Period) => {
+// ========================================
+// DATE RANGE
+// ========================================
+
+const getDateRange = (
+  period: Period
+) => {
   const now = new Date();
 
   const to = new Date(now);
@@ -93,14 +173,35 @@ const getDateRange = (period: Period) => {
   let from = new Date(now);
 
   if (period === "Today") {
-    from.setHours(0, 0, 0, 0);
+    from.setHours(
+      0,
+      0,
+      0,
+      0
+    );
   } else if (period === "7 Days") {
-    from.setDate(from.getDate() - 6);
-    from.setHours(0, 0, 0, 0);
+    from.setDate(
+      from.getDate() - 6
+    );
+
+    from.setHours(
+      0,
+      0,
+      0,
+      0
+    );
   } else if (period === "This Year") {
-    from = new Date(now.getFullYear(), 0, 1);
+    from = new Date(
+      now.getFullYear(),
+      0,
+      1
+    );
   } else {
-    from = new Date(now.getFullYear(), now.getMonth(), 1);
+    from = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1
+    );
   }
 
   return {
@@ -109,21 +210,28 @@ const getDateRange = (period: Period) => {
   };
 };
 
+// ========================================
+// SUMMARY CARD
+// ========================================
+
+
 function SummaryCard({
   icon,
   title,
   value,
   subtitle,
   color,
+  onPress,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   value: string;
   subtitle: string;
   color: string;
+  onPress?: () => void;
 }) {
-  return (
-    <View style={styles.summaryCard}>
+  const content = (
+    <>
       <View
         style={[
           styles.iconBox,
@@ -132,19 +240,56 @@ function SummaryCard({
           },
         ]}
       >
-        <Ionicons name={icon} size={21} color={color} />
+        <Ionicons
+          name={icon}
+          size={21}
+          color={color}
+        />
       </View>
 
-      <Text style={styles.smallLabel}>{title}</Text>
+      <Text style={styles.smallLabel}>
+        {title}
+      </Text>
 
-      <Text style={[styles.summaryValue, { color }]} numberOfLines={1}>
+      <Text
+        style={[
+          styles.summaryValue,
+          { color },
+        ]}
+        numberOfLines={1}
+      >
         {value}
       </Text>
 
-      <Text style={styles.muted}>{subtitle}</Text>
+      <Text style={styles.muted}>
+        {subtitle}
+      </Text>
+    </>
+  );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={onPress}
+        style={styles.summaryCard}
+      >
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <View style={styles.summaryCard}>
+      {content}
     </View>
   );
 }
+
+
+// ========================================
+// ROW
+// ========================================
 
 function Row({
   icon,
@@ -161,161 +306,287 @@ function Row({
     <View style={styles.row}>
       <View style={styles.rowLeft}>
         <View style={styles.rowIcon}>
-          <Ionicons name={icon} size={17} color={COLORS.primary} />
+          <Ionicons
+            name={icon}
+            size={17}
+            color={COLORS.primary}
+          />
         </View>
 
-        <Text style={styles.rowLabel}>{label}</Text>
+        <Text style={styles.rowLabel}>
+          {label}
+        </Text>
       </View>
 
-      <Text style={[styles.rowValue, { color }]}>{value}</Text>
+      <Text
+        style={[
+          styles.rowValue,
+          { color },
+        ]}
+      >
+        {value}
+      </Text>
     </View>
   );
 }
 
+// ========================================
+// REPORT SCREEN
+// ========================================
+
 export default function ReportsScreen() {
-  const [period, setPeriod] = useState<Period>("This Month");
-  const [open, setOpen] = useState(false);
+  const [
+    period,
+    setPeriod,
+  ] = useState<Period>(
+    "This Month"
+  );
 
-  const [revenue, setRevenue] = useState(0);
-  const [totalBills, setTotalBills] = useState(0);
+  const [
+    open,
+    setOpen,
+  ] = useState(false);
 
-  const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
-  const [expenseTotal, setExpenseTotal] = useState(0);
+  const [
+    revenue,
+    setRevenue,
+  ] = useState(0);
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState("");
+  const [
+    totalBills,
+    setTotalBills,
+  ] = useState(0);
 
-  const loadReport = useCallback(async () => {
-    try {
-      setError("");
+  const [
+    expenses,
+    setExpenses,
+  ] = useState<ExpenseItem[]>([]);
 
-      const periodParam = getPeriodParam(period);
+  const [
+    expenseTotal,
+    setExpenseTotal,
+  ] = useState(0);
 
-      console.log(
-        "REPORT REVENUE REQUEST:",
-        `${API_URL}/bills/revenue?period=${periodParam}`
-      );
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-      /*
-       * -------------------------------
-       * REVENUE
-       * -------------------------------
-       */
-      const revenueResponse = await fetch(
-        `${API_URL}/bills/revenue?period=${periodParam}`
-      );
+  const [
+    refreshing,
+    setRefreshing,
+  ] = useState(false);
 
-      const revenueData: RevenueResponse = await revenueResponse
-        .json()
-        .catch(() => ({}));
+  const [
+    error,
+    setError,
+  ] = useState("");
 
-      if (!revenueResponse.ok) {
-        throw new Error(
-          revenueData?.message || "Failed to load revenue"
-        );
-      }
+  // ========================================
+  // LOAD REPORT
+  // ========================================
 
-      const realRevenue = Number(revenueData?.totalRevenue || 0);
-      const realBills = Number(revenueData?.totalBills || 0);
+  const loadReport =
+    useCallback(async () => {
+      try {
+        setError("");
 
-      setRevenue(realRevenue);
-      setTotalBills(realBills);
+        const periodParam =
+          getPeriodParam(period);
 
-      /*
-       * -------------------------------
-       * EXPENSES
-       * -------------------------------
-       *
-       * Expense API ko existing backend route se read karenge.
-       */
-      const range = getDateRange(period);
+        // ========================================
+        // AUTH HEADERS
+        // ========================================
 
-      const expenseUrl =
-        `${API_URL}/expenses` +
-        `?from=${encodeURIComponent(range.from.toISOString())}` +
-        `&to=${encodeURIComponent(range.to.toISOString())}`;
+        const headers =
+          await getAuthHeaders();
 
-      console.log("REPORT EXPENSE REQUEST:", expenseUrl);
+        // ========================================
+        // REVENUE
+        // ========================================
 
-      const expenseResponse = await fetch(expenseUrl);
+        const revenueUrl =
+          `${API_URL}/bills/revenue?period=${periodParam}`;
 
-      const expenseData: ExpenseResponse = await expenseResponse
-        .json()
-        .catch(() => ({}));
-
-      if (!expenseResponse.ok) {
-        /*
-         * Agar expense route abhi available nahi hai,
-         * report revenue ko break nahi karegi.
-         */
         console.log(
-          "REPORT EXPENSE API:",
-          expenseData?.message || "Expense API unavailable"
+          "REPORT REVENUE REQUEST:",
+          revenueUrl
         );
 
-        setExpenses([]);
-        setExpenseTotal(0);
-      } else {
-        const expenseList = Array.isArray(expenseData?.expenses)
-          ? expenseData.expenses
-          : Array.isArray(expenseData?.data)
-          ? expenseData.data
-          : [];
+        const revenueResponse =
+          await fetch(
+            revenueUrl,
+            {
+              method: "GET",
+              headers,
+            }
+          );
 
-        const backendTotal =
-          Number(expenseData?.totalExpense) ||
-          Number(expenseData?.totalExpenses) ||
-          0;
+        const revenueData: RevenueResponse =
+          await revenueResponse
+            .json()
+            .catch(() => ({}));
 
-        const calculatedTotal = expenseList.reduce(
-          (sum, item) => sum + Number(item?.amount || 0),
-          0
+        if (!revenueResponse.ok) {
+          throw new Error(
+            revenueData?.message ||
+              "Failed to load revenue"
+          );
+        }
+
+        const realRevenue =
+          Number(
+            revenueData?.totalRevenue ||
+              0
+          );
+
+        const realBills =
+          Number(
+            revenueData?.totalBills ||
+              0
+          );
+
+        setRevenue(realRevenue);
+        setTotalBills(realBills);
+
+        // ========================================
+        // EXPENSES
+        // ========================================
+
+        const range =
+          getDateRange(period);
+
+        const expenseUrl =
+          `${API_URL}/expenses` +
+          `?from=${encodeURIComponent(
+            range.from.toISOString()
+          )}` +
+          `&to=${encodeURIComponent(
+            range.to.toISOString()
+          )}`;
+
+        console.log(
+          "REPORT EXPENSE REQUEST:",
+          expenseUrl
         );
 
-        setExpenses(expenseList);
+        const expenseResponse =
+          await fetch(
+            expenseUrl,
+            {
+              method: "GET",
+              headers,
+            }
+          );
 
-        setExpenseTotal(
-          backendTotal > 0 ? backendTotal : calculatedTotal
+        const expenseData: ExpenseResponse =
+          await expenseResponse
+            .json()
+            .catch(() => ({}));
+
+        if (!expenseResponse.ok) {
+          /*
+           * Expense API fail hone par
+           * revenue report ko break nahi karenge.
+           */
+          console.log(
+            "REPORT EXPENSE API:",
+            expenseData?.message ||
+              "Expense API unavailable"
+          );
+
+          setExpenses([]);
+          setExpenseTotal(0);
+        } else {
+          const expenseList =
+            Array.isArray(
+              expenseData?.expenses
+            )
+              ? expenseData.expenses
+              : Array.isArray(
+                  expenseData?.data
+                )
+              ? expenseData.data
+              : [];
+
+          const backendTotal =
+            Number(
+              expenseData?.totalExpense
+            ) ||
+            Number(
+              expenseData?.totalExpenses
+            ) ||
+            0;
+
+          const calculatedTotal =
+            expenseList.reduce(
+              (sum, item) =>
+                sum +
+                Number(
+                  item?.amount || 0
+                ),
+              0
+            );
+
+          setExpenses(
+            expenseList
+          );
+
+          setExpenseTotal(
+            backendTotal > 0
+              ? backendTotal
+              : calculatedTotal
+          );
+        }
+      } catch (err: any) {
+        console.error(
+          "REPORT ERROR:",
+          err
         );
+
+        setError(
+          err?.message ||
+            "Unable to load report data"
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-    } catch (err: any) {
-      console.error("REPORT ERROR:", err);
+    }, [period]);
 
-      setError(
-        err?.message ||
-          "Unable to load report data"
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [period]);
+  // ========================================
+  // LOAD ON PERIOD CHANGE
+  // ========================================
 
   useEffect(() => {
     setLoading(true);
     loadReport();
   }, [loadReport]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadReport();
-  };
+  // ========================================
+  // REFRESH
+  // ========================================
 
-  /*
-   * -------------------------------
-   * CALCULATIONS
-   * -------------------------------
-   */
+  const onRefresh =
+    async () => {
+      setRefreshing(true);
+      await loadReport();
+    };
 
-  const netProfit = Math.max(
-    0,
-    revenue - expenseTotal
-  );
+  // ========================================
+  // CALCULATIONS
+  // ========================================
+
+  const netProfit =
+    Math.max(
+      0,
+      revenue - expenseTotal
+    );
 
   const profitMargin =
     revenue > 0
-      ? (netProfit / revenue) * 100
+      ? (netProfit / revenue) *
+        100
       : 0;
 
   const averageBill =
@@ -323,42 +594,56 @@ export default function ReportsScreen() {
       ? revenue / totalBills
       : 0;
 
-  /*
-   * -------------------------------
-   * EXPENSE CATEGORY SUMMARY
-   * -------------------------------
-   */
+  // ========================================
+  // EXPENSE CATEGORY SUMMARY
+  // ========================================
 
-  const expenseCategories = useMemo(() => {
-    const map: Record<string, number> = {};
+  const expenseCategories =
+    useMemo(() => {
+      const map: Record<
+        string,
+        number
+      > = {};
 
-    expenses.forEach((item) => {
-      const category =
-        item?.category ||
-        "Other";
+      expenses.forEach(
+        (item) => {
+          const category =
+            item?.category ||
+            "Other";
 
-      map[category] =
-        (map[category] || 0) +
-        Number(item?.amount || 0);
-    });
+          map[category] =
+            (map[category] || 0) +
+            Number(
+              item?.amount || 0
+            );
+        }
+      );
 
-    return Object.entries(map)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 6);
-  }, [expenses]);
+      return Object.entries(map)
+        .sort(
+          (a, b) =>
+            b[1] - a[1]
+        )
+        .slice(0, 6);
+    }, [expenses]);
 
-  /*
-   * Revenue currently comes from the Bills
-   * revenue endpoint. Once bill category-level
-   * API is available, this section can be expanded.
-   */
+  // ========================================
+  // REVENUE ITEMS
+  // ========================================
+
   const revenueItems = [
     {
-      icon: "cut-outline" as keyof typeof Ionicons.glyphMap,
-      label: "Salon Revenue",
+      icon:
+        "cut-outline" as keyof typeof Ionicons.glyphMap,
+      label:
+        "Salon Revenue",
       value: revenue,
     },
   ];
+
+  // ========================================
+  // PERIOD TEXT
+  // ========================================
 
   const periodText =
     period === "Today"
@@ -369,18 +654,31 @@ export default function ReportsScreen() {
       ? "this year"
       : "this month";
 
+  // ========================================
+  // UI
+  // ========================================
+
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView
+      style={styles.safe}
+    >
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={
+          styles.content
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
       >
         {/* HEADER */}
+
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.back}
-            onPress={() => router.back()}
+            onPress={() =>
+              router.back()
+            }
           >
             <Ionicons
               name="arrow-back"
@@ -389,53 +687,88 @@ export default function ReportsScreen() {
             />
           </TouchableOpacity>
 
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>
+          <View
+            style={{
+              flex: 1,
+            }}
+          >
+            <Text
+              style={styles.title}
+            >
               Reports Summary
             </Text>
 
-            <Text style={styles.subtitle}>
-              Complete salon business overview
+            <Text
+              style={
+                styles.subtitle
+              }
+            >
+              Complete salon business
+              overview
             </Text>
           </View>
 
           <TouchableOpacity
-            style={styles.refreshButton}
+            style={
+              styles.refreshButton
+            }
             onPress={onRefresh}
             disabled={refreshing}
           >
             {refreshing ? (
               <ActivityIndicator
                 size="small"
-                color={COLORS.primary}
+                color={
+                  COLORS.primary
+                }
               />
             ) : (
               <Ionicons
                 name="refresh-outline"
                 size={21}
-                color={COLORS.primary}
+                color={
+                  COLORS.primary
+                }
               />
             )}
           </TouchableOpacity>
         </View>
 
         {/* PERIOD */}
-        <Text style={styles.filterLabel}>
+
+        <Text
+          style={styles.filterLabel}
+        >
           REPORT PERIOD
         </Text>
 
         <TouchableOpacity
           style={styles.period}
-          onPress={() => setOpen((value) => !value)}
+          onPress={() =>
+            setOpen(
+              (value) =>
+                !value
+            )
+          }
         >
-          <View style={styles.periodLeft}>
+          <View
+            style={
+              styles.periodLeft
+            }
+          >
             <Ionicons
               name="time-outline"
               size={17}
-              color={COLORS.primary}
+              color={
+                COLORS.primary
+              }
             />
 
-            <Text style={styles.periodText}>
+            <Text
+              style={
+                styles.periodText
+              }
+            >
               {period}
             </Text>
           </View>
@@ -447,12 +780,18 @@ export default function ReportsScreen() {
                 : "chevron-down"
             }
             size={18}
-            color={COLORS.primary}
+            color={
+              COLORS.primary
+            }
           />
         </TouchableOpacity>
 
         {open && (
-          <View style={styles.dropdown}>
+          <View
+            style={
+              styles.dropdown
+            }
+          >
             {(
               [
                 "Today",
@@ -460,131 +799,212 @@ export default function ReportsScreen() {
                 "This Month",
                 "This Year",
               ] as Period[]
-            ).map((item) => (
-              <TouchableOpacity
-                key={item}
-                style={[
-                  styles.dropItem,
-                  item === period &&
-                    styles.dropActive,
-                ]}
-                onPress={() => {
-                  setPeriod(item);
-                  setOpen(false);
-                }}
-              >
-                <Text
+            ).map(
+              (item) => (
+                <TouchableOpacity
+                  key={item}
                   style={[
-                    styles.dropText,
-                    item === period &&
-                      styles.dropTextActive,
+                    styles.dropItem,
+                    item ===
+                      period &&
+                      styles.dropActive,
                   ]}
+                  onPress={() => {
+                    setPeriod(
+                      item
+                    );
+                    setOpen(
+                      false
+                    );
+                  }}
                 >
-                  {item}
-                </Text>
+                  <Text
+                    style={[
+                      styles.dropText,
+                      item ===
+                        period &&
+                        styles.dropTextActive,
+                    ]}
+                  >
+                    {item}
+                  </Text>
 
-                {item === period && (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={18}
-                    color={COLORS.primary}
-                  />
-                )}
-              </TouchableOpacity>
-            ))}
+                  {item ===
+                    period && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={18}
+                      color={
+                        COLORS.primary
+                      }
+                    />
+                  )}
+                </TouchableOpacity>
+              )
+            )}
           </View>
         )}
 
         {/* ERROR */}
+
         {!!error && (
-          <View style={styles.errorBox}>
+          <View
+            style={
+              styles.errorBox
+            }
+          >
             <Ionicons
               name="warning-outline"
               size={19}
-              color={COLORS.danger}
+              color={
+                COLORS.danger
+              }
             />
 
-            <Text style={styles.errorText}>
+            <Text
+              style={
+                styles.errorText
+              }
+            >
               {error}
             </Text>
           </View>
         )}
 
         {/* LOADING */}
+
         {loading ? (
-          <View style={styles.loadingBox}>
+          <View
+            style={
+              styles.loadingBox
+            }
+          >
             <ActivityIndicator
               size="large"
-              color={COLORS.primary}
+              color={
+                COLORS.primary
+              }
             />
 
-            <Text style={styles.loadingText}>
+            <Text
+              style={
+                styles.loadingText
+              }
+            >
               Loading report...
             </Text>
           </View>
         ) : (
           <>
             {/* FINANCIAL SUMMARY */}
-            <Text style={styles.sectionTitle}>
+
+            <Text
+              style={
+                styles.sectionTitle
+              }
+            >
               Financial Summary
             </Text>
 
-            <Text style={styles.sectionSub}>
-              Revenue, expenses and actual profit
+            <Text
+              style={
+                styles.sectionSub
+              }
+            >
+              Revenue, expenses and actual
+              profit
             </Text>
 
-            <View style={styles.grid}>
-              <SummaryCard
-                icon="trending-up-outline"
-                title="Total Revenue"
-                value={money(revenue)}
-                subtitle={`${totalBills} bills generated`}
-                color={COLORS.primary}
-              />
+            <View
+              style={styles.grid}
+            >
+             
+<SummaryCard
+  icon="trending-up-outline"
+  title="Total Revenue"
+  value={money(revenue)}
+  subtitle={`${totalBills} bills generated`}
+  color={COLORS.primary}
+  onPress={() => router.push("/reports/staff-service-revenue")}
+/>
 
               <SummaryCard
                 icon="wallet-outline"
                 title="Total Expenses"
-                value={money(expenseTotal)}
+                value={money(
+                  expenseTotal
+                )}
                 subtitle="Business expenses"
-                color={COLORS.warning}
+                color={
+                  COLORS.warning
+                }
               />
 
               <SummaryCard
                 icon="cash-outline"
                 title="Net Profit"
-                value={money(netProfit)}
+                value={money(
+                  netProfit
+                )}
                 subtitle="Revenue - expenses"
-                color={COLORS.success}
+                color={
+                  COLORS.success
+                }
               />
 
               <SummaryCard
                 icon="pie-chart-outline"
                 title="Profit Margin"
-                value={`${profitMargin.toFixed(2)}%`}
+                value={`${profitMargin.toFixed(
+                  2
+                )}%`}
                 subtitle="Business margin"
-                color={COLORS.success}
+                color={
+                  COLORS.success
+                }
               />
             </View>
 
             {/* BUSINESS SUMMARY */}
-            <View style={styles.card}>
-              <View style={styles.cardHead}>
-                <View style={styles.headIcon}>
+
+            <View
+              style={styles.card}
+            >
+              <View
+                style={
+                  styles.cardHead
+                }
+              >
+                <View
+                  style={
+                    styles.headIcon
+                  }
+                >
                   <Ionicons
                     name="analytics-outline"
                     size={19}
-                    color={COLORS.primary}
+                    color={
+                      COLORS.primary
+                    }
                   />
                 </View>
 
                 <View>
-                  <Text style={styles.cardTitle}>
+                  <Text
+                    style={
+                      styles.cardTitle
+                    }
+                  >
                     Business Summary
                   </Text>
 
-                  <Text style={styles.cardSub}>
-                    Key numbers for {periodText}
+                  <Text
+                    style={
+                      styles.cardSub
+                    }
+                  >
+                    Key numbers for{" "}
+                    {periodText}
                   </Text>
                 </View>
               </View>
@@ -592,58 +1012,97 @@ export default function ReportsScreen() {
               <Row
                 icon="receipt-outline"
                 label="Total Bills"
-                value={totalBills}
+                value={
+                  totalBills
+                }
               />
 
               <Row
                 icon="cash-outline"
                 label="Average Bill"
-                value={money(averageBill)}
-                color={COLORS.primary}
+                value={money(
+                  averageBill
+                )}
+                color={
+                  COLORS.primary
+                }
               />
 
-              <View style={styles.divider} />
+              <View
+                style={
+                  styles.divider
+                }
+              />
 
               <Row
                 icon="trending-up-outline"
                 label="Total Revenue"
-                value={money(revenue)}
-                color={COLORS.primary}
+                value={money(
+                  revenue
+                )}
+                color={
+                  COLORS.primary
+                }
               />
 
               <Row
                 icon="arrow-down-outline"
                 label="Total Expenses"
-                value={money(expenseTotal)}
-                color={COLORS.warning}
+                value={money(
+                  expenseTotal
+                )}
+                color={
+                  COLORS.warning
+                }
               />
 
               <Row
                 icon="stats-chart-outline"
                 label="Net Profit"
-                value={money(netProfit)}
-                color={COLORS.success}
+                value={money(
+                  netProfit
+                )}
+                color={
+                  COLORS.success
+                }
               />
 
-              <View style={styles.divider} />
+              <View
+                style={
+                  styles.divider
+                }
+              />
 
               <Row
                 icon="pie-chart-outline"
                 label="Profit Margin"
-                value={`${profitMargin.toFixed(2)}%`}
-                color={COLORS.success}
+                value={`${profitMargin.toFixed(
+                  2
+                )}%`}
+                color={
+                  COLORS.success
+                }
               />
             </View>
 
             {/* REVENUE + EXPENSE */}
-            <View style={styles.twoCol}>
+
+            <View
+              style={styles.twoCol}
+            >
+              {/* REVENUE */}
+
               <View
                 style={[
                   styles.card,
                   styles.half,
                 ]}
               >
-                <View style={styles.cardHead}>
+                <View
+                  style={
+                    styles.cardHead
+                  }
+                >
                   <View
                     style={[
                       styles.headIcon,
@@ -656,44 +1115,74 @@ export default function ReportsScreen() {
                     <Ionicons
                       name="arrow-up-outline"
                       size={19}
-                      color={COLORS.success}
+                      color={
+                        COLORS.success
+                      }
                     />
                   </View>
 
                   <View>
-                    <Text style={styles.cardTitle}>
+                    <Text
+                      style={
+                        styles.cardTitle
+                      }
+                    >
                       Revenue
                     </Text>
 
-                    <Text style={styles.cardSub}>
+                    <Text
+                      style={
+                        styles.cardSub
+                      }
+                    >
                       Money received
                     </Text>
                   </View>
                 </View>
 
-                <Text style={styles.total}>
-                  {money(revenue)}
+                <Text
+                  style={
+                    styles.total
+                  }
+                >
+                  {money(
+                    revenue
+                  )}
                 </Text>
 
                 {revenueItems.map(
                   (item) => (
                     <View
-                      key={item.label}
-                      style={styles.breakRow}
+                      key={
+                        item.label
+                      }
+                      style={
+                        styles.breakRow
+                      }
                     >
                       <View
-                        style={styles.breakName}
+                        style={
+                          styles.breakName
+                        }
                       >
                         <Ionicons
-                          name={item.icon}
+                          name={
+                            item.icon
+                          }
                           size={15}
-                          color={COLORS.primary}
+                          color={
+                            COLORS.primary
+                          }
                         />
 
                         <Text
-                          style={styles.breakText}
+                          style={
+                            styles.breakText
+                          }
                         >
-                          {item.label}
+                          {
+                            item.label
+                          }
                         </Text>
                       </View>
 
@@ -702,12 +1191,16 @@ export default function ReportsScreen() {
                           styles.breakValue
                         }
                       >
-                        {money(item.value)}
+                        {money(
+                          item.value
+                        )}
                       </Text>
                     </View>
                   )
                 )}
               </View>
+
+              {/* EXPENSES */}
 
               <View
                 style={[
@@ -715,7 +1208,11 @@ export default function ReportsScreen() {
                   styles.half,
                 ]}
               >
-                <View style={styles.cardHead}>
+                <View
+                  style={
+                    styles.cardHead
+                  }
+                >
                   <View
                     style={[
                       styles.headIcon,
@@ -728,16 +1225,26 @@ export default function ReportsScreen() {
                     <Ionicons
                       name="arrow-down-outline"
                       size={19}
-                      color={COLORS.warning}
+                      color={
+                        COLORS.warning
+                      }
                     />
                   </View>
 
                   <View>
-                    <Text style={styles.cardTitle}>
+                    <Text
+                      style={
+                        styles.cardTitle
+                      }
+                    >
                       Expenses
                     </Text>
 
-                    <Text style={styles.cardSub}>
+                    <Text
+                      style={
+                        styles.cardSub
+                      }
+                    >
                       Money spent
                     </Text>
                   </View>
@@ -752,7 +1259,9 @@ export default function ReportsScreen() {
                     },
                   ]}
                 >
-                  {money(expenseTotal)}
+                  {money(
+                    expenseTotal
+                  )}
                 </Text>
 
                 {expenseCategories.length ===
@@ -780,9 +1289,14 @@ export default function ReportsScreen() {
                   </View>
                 ) : (
                   expenseCategories.map(
-                    ([category, value]) => (
+                    ([
+                      category,
+                      value,
+                    ]) => (
                       <View
-                        key={category}
+                        key={
+                          category
+                        }
                         style={
                           styles.breakRow
                         }
@@ -808,7 +1322,9 @@ export default function ReportsScreen() {
                               1
                             }
                           >
-                            {category}
+                            {
+                              category
+                            }
                           </Text>
                         </View>
 
@@ -817,7 +1333,9 @@ export default function ReportsScreen() {
                             styles.breakValue
                           }
                         >
-                          {money(value)}
+                          {money(
+                            value
+                          )}
                         </Text>
                       </View>
                     )
@@ -827,33 +1345,70 @@ export default function ReportsScreen() {
             </View>
 
             {/* PROFIT CARD */}
-            <View style={styles.profitCard}>
-              <View style={styles.profitIcon}>
+
+            <View
+              style={
+                styles.profitCard
+              }
+            >
+              <View
+                style={
+                  styles.profitIcon
+                }
+              >
                 <Ionicons
                   name="stats-chart-outline"
                   size={24}
-                  color={COLORS.success}
+                  color={
+                    COLORS.success
+                  }
                 />
               </View>
 
-              <View style={{ flex: 1 }}>
-                <Text style={styles.profitTitle}>
+              <View
+                style={{
+                  flex: 1,
+                }}
+              >
+                <Text
+                  style={
+                    styles.profitTitle
+                  }
+                >
                   Net Profit
                 </Text>
 
-                <Text style={styles.profitSub}>
-                  Revenue minus all recorded expenses
+                <Text
+                  style={
+                    styles.profitSub
+                  }
+                >
+                  Revenue minus all recorded
+                  expenses
                 </Text>
               </View>
 
-              <Text style={styles.profit}>
-                {money(netProfit)}
+              <Text
+                style={
+                  styles.profit
+                }
+              >
+                {money(
+                  netProfit
+                )}
               </Text>
             </View>
 
             {/* EXPENSE DETAIL */}
-            <View style={styles.card}>
-              <View style={styles.cardHead}>
+
+            <View
+              style={styles.card}
+            >
+              <View
+                style={
+                  styles.cardHead
+                }
+              >
                 <View
                   style={[
                     styles.headIcon,
@@ -866,25 +1421,42 @@ export default function ReportsScreen() {
                   <Ionicons
                     name="list-outline"
                     size={19}
-                    color={COLORS.warning}
+                    color={
+                      COLORS.warning
+                    }
                   />
                 </View>
 
                 <View>
-                  <Text style={styles.cardTitle}>
+                  <Text
+                    style={
+                      styles.cardTitle
+                    }
+                  >
                     Expense Details
                   </Text>
 
-                  <Text style={styles.cardSub}>
+                  <Text
+                    style={
+                      styles.cardSub
+                    }
+                  >
                     Recorded salon expenses
                   </Text>
                 </View>
               </View>
 
-              {expenses.length === 0 ? (
-                <View style={styles.empty}>
+              {expenses.length ===
+              0 ? (
+                <View
+                  style={
+                    styles.empty
+                  }
+                >
                   <View
-                    style={styles.emptyIcon}
+                    style={
+                      styles.emptyIcon
+                    }
                   >
                     <Ionicons
                       name="receipt-outline"
@@ -895,17 +1467,27 @@ export default function ReportsScreen() {
                     />
                   </View>
 
-                  <Text style={styles.emptyTitle}>
+                  <Text
+                    style={
+                      styles.emptyTitle
+                    }
+                  >
                     No expenses recorded
                   </Text>
 
-                  <Text style={styles.emptyText}>
+                  <Text
+                    style={
+                      styles.emptyText
+                    }
+                  >
                     Add expenses from the Expenses
                     section to see them here.
                   </Text>
 
                   <TouchableOpacity
-                    style={styles.expenseButton}
+                    style={
+                      styles.expenseButton
+                    }
                     onPress={() =>
                       router.push(
                         "/expenses"
@@ -915,7 +1497,9 @@ export default function ReportsScreen() {
                     <Ionicons
                       name="add"
                       size={18}
-                      color={COLORS.white}
+                      color={
+                        COLORS.white
+                      }
                     />
 
                     <Text
@@ -930,97 +1514,119 @@ export default function ReportsScreen() {
               ) : (
                 expenses
                   .slice(0, 8)
-                  .map((item, index) => {
-                    const amount = Number(
-                      item?.amount || 0
-                    );
+                  .map(
+                    (
+                      item,
+                      index
+                    ) => {
+                      const amount =
+                        Number(
+                          item?.amount ||
+                            0
+                        );
 
-                    const category =
-                      item?.category ||
-                      "Other";
+                      const category =
+                        item?.category ||
+                        "Other";
 
-                    const title =
-                      item?.title ||
-                      item?.description ||
-                      category;
+                      const title =
+                        item?.title ||
+                        item?.description ||
+                        category;
 
-                    return (
-                      <View
-                        key={
-                          item?._id ||
-                          `${category}-${index}`
-                        }
-                        style={
-                          styles.expenseDetailRow
-                        }
-                      >
+                      return (
                         <View
+                          key={
+                            item?._id ||
+                            `${category}-${index}`
+                          }
                           style={
-                            styles.expenseDetailLeft
+                            styles.expenseDetailRow
                           }
                         >
                           <View
                             style={
-                              styles.expenseCircle
+                              styles.expenseDetailLeft
                             }
                           >
-                            <Ionicons
-                              name="wallet-outline"
-                              size={17}
-                              color={
-                                COLORS.warning
+                            <View
+                              style={
+                                styles.expenseCircle
                               }
-                            />
+                            >
+                              <Ionicons
+                                name="wallet-outline"
+                                size={17}
+                                color={
+                                  COLORS.warning
+                                }
+                              />
+                            </View>
+
+                            <View
+                              style={{
+                                flex: 1,
+                              }}
+                            >
+                              <Text
+                                style={
+                                  styles.expenseTitle
+                                }
+                                numberOfLines={
+                                  1
+                                }
+                              >
+                                {title}
+                              </Text>
+
+                              <Text
+                                style={
+                                  styles.expenseCategory
+                                }
+                              >
+                                {category}
+                              </Text>
+                            </View>
                           </View>
 
-                          <View
-                            style={{
-                              flex: 1,
-                            }}
+                          <Text
+                            style={
+                              styles.expenseAmount
+                            }
                           >
-                            <Text
-                              style={
-                                styles.expenseTitle
-                              }
-                              numberOfLines={1}
-                            >
-                              {title}
-                            </Text>
-
-                            <Text
-                              style={
-                                styles.expenseCategory
-                              }
-                            >
-                              {category}
-                            </Text>
-                          </View>
+                            -
+                            {money(
+                              amount
+                            )}
+                          </Text>
                         </View>
-
-                        <Text
-                          style={
-                            styles.expenseAmount
-                          }
-                        >
-                          -{money(amount)}
-                        </Text>
-                      </View>
-                    );
-                  })
+                      );
+                    }
+                  )
               )}
             </View>
 
-            {/* REFRESH / INFO */}
-            <View style={styles.note}>
+            {/* INFO */}
+
+            <View
+              style={styles.note}
+            >
               <Ionicons
                 name="information-circle-outline"
                 size={16}
-                color={COLORS.textMuted}
+                color={
+                  COLORS.textMuted
+                }
               />
 
-              <Text style={styles.noteText}>
-                Report data is calculated from your
-                salon revenue and recorded expenses.
+              <Text
+                style={
+                  styles.noteText
+                }
+              >
+                Report data is calculated from
+                your salon revenue and recorded
+                expenses.
               </Text>
             </View>
           </>
@@ -1030,15 +1636,21 @@ export default function ReportsScreen() {
   );
 }
 
+// ========================================
+// STYLES
+// ========================================
+
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor:
+      COLORS.background,
   },
 
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor:
+      COLORS.background,
   },
 
   content: {
@@ -1057,9 +1669,11 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 13,
-    backgroundColor: COLORS.card,
+    backgroundColor:
+      COLORS.card,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor:
+      COLORS.border,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -1081,7 +1695,8 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 13,
-    backgroundColor: COLORS.primarySoft,
+    backgroundColor:
+      COLORS.primarySoft,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1095,14 +1710,17 @@ const styles = StyleSheet.create({
 
   period: {
     height: 48,
-    backgroundColor: COLORS.card,
+    backgroundColor:
+      COLORS.card,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor:
+      COLORS.border,
     borderRadius: 13,
     paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent:
+      "space-between",
     marginBottom: 18,
   },
 
@@ -1119,9 +1737,11 @@ const styles = StyleSheet.create({
   },
 
   dropdown: {
-    backgroundColor: COLORS.card,
+    backgroundColor:
+      COLORS.card,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor:
+      COLORS.border,
     borderRadius: 13,
     marginTop: -12,
     marginBottom: 18,
@@ -1134,13 +1754,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent:
+      "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
+    borderBottomColor:
+      COLORS.divider,
   },
 
   dropActive: {
-    backgroundColor: COLORS.primaryVerySoft,
+    backgroundColor:
+      COLORS.primaryVerySoft,
   },
 
   dropText: {
@@ -1155,7 +1778,8 @@ const styles = StyleSheet.create({
   },
 
   errorBox: {
-    backgroundColor: COLORS.dangerSoft,
+    backgroundColor:
+      COLORS.dangerSoft,
     borderWidth: 1,
     borderColor: "#F1C8C3",
     borderRadius: 14,
@@ -1202,15 +1826,18 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
+    justifyContent:
+      "space-between",
   },
 
   summaryCard: {
     width: "48.4%",
-    backgroundColor: COLORS.card,
+    backgroundColor:
+      COLORS.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor:
+      COLORS.border,
     padding: 15,
     marginBottom: 12,
   },
@@ -1243,10 +1870,12 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    backgroundColor: COLORS.card,
+    backgroundColor:
+      COLORS.card,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor:
+      COLORS.border,
     padding: 17,
     marginBottom: 16,
   },
@@ -1261,7 +1890,8 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: COLORS.primarySoft,
+    backgroundColor:
+      COLORS.primarySoft,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,
@@ -1283,7 +1913,8 @@ const styles = StyleSheet.create({
     minHeight: 47,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent:
+      "space-between",
   },
 
   rowLeft: {
@@ -1296,7 +1927,8 @@ const styles = StyleSheet.create({
     width: 31,
     height: 31,
     borderRadius: 9,
-    backgroundColor: COLORS.primaryVerySoft,
+    backgroundColor:
+      COLORS.primaryVerySoft,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,
@@ -1315,13 +1947,15 @@ const styles = StyleSheet.create({
 
   divider: {
     height: 1,
-    backgroundColor: COLORS.divider,
+    backgroundColor:
+      COLORS.divider,
     marginVertical: 4,
   },
 
   twoCol: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent:
+      "space-between",
   },
 
   half: {
@@ -1339,9 +1973,11 @@ const styles = StyleSheet.create({
     minHeight: 38,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent:
+      "space-between",
     borderTopWidth: 1,
-    borderTopColor: COLORS.divider,
+    borderTopColor:
+      COLORS.divider,
   },
 
   breakName: {
@@ -1366,7 +2002,8 @@ const styles = StyleSheet.create({
   },
 
   profitCard: {
-    backgroundColor: COLORS.successSoft,
+    backgroundColor:
+      COLORS.successSoft,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: "#D5EBDD",
@@ -1380,7 +2017,8 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: COLORS.card,
+    backgroundColor:
+      COLORS.card,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -1419,7 +2057,8 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 17,
-    backgroundColor: COLORS.primaryVerySoft,
+    backgroundColor:
+      COLORS.primaryVerySoft,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 9,
@@ -1442,10 +2081,12 @@ const styles = StyleSheet.create({
     height: 42,
     paddingHorizontal: 16,
     borderRadius: 12,
-    backgroundColor: COLORS.primary,
+    backgroundColor:
+      COLORS.primary,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent:
+      "center",
     marginTop: 13,
   },
 
@@ -1460,9 +2101,11 @@ const styles = StyleSheet.create({
     minHeight: 58,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent:
+      "space-between",
     borderTopWidth: 1,
-    borderTopColor: COLORS.divider,
+    borderTopColor:
+      COLORS.divider,
   },
 
   expenseDetailLeft: {
@@ -1475,7 +2118,8 @@ const styles = StyleSheet.create({
     width: 37,
     height: 37,
     borderRadius: 12,
-    backgroundColor: COLORS.warningSoft,
+    backgroundColor:
+      COLORS.warningSoft,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,

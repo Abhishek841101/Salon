@@ -1,4 +1,6 @@
+
 import React, { useEffect, useState } from "react";
+
 import {
   ActivityIndicator,
   Alert,
@@ -13,12 +15,16 @@ import {
   TextInput,
   View,
 } from "react-native";
+
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useDispatch, useSelector } from "react-redux";
-import type { AppDispatch, RootState } from "../../src/store";
+
+import { store } from "../../src/store/store";
+type RootState = ReturnType<typeof store.getState>;
+type AppDispatch = typeof store.dispatch;
 import {
   getServiceById,
   updateService,
@@ -35,6 +41,7 @@ type ServiceImage = {
 type Service = {
   _id: string;
   name: string;
+  serviceGroup?: string;
   category?: string;
   price: number;
   duration: number;
@@ -48,69 +55,150 @@ type Service = {
 
 export default function EditServiceScreen() {
   const dispatch = useDispatch<AppDispatch>();
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const {
-    service,
-    detailsLoading,
-    saving,
-    error,
-    success,
-  } = useSelector((state: RootState) => state.services);
+
+  const { id } = useLocalSearchParams<{
+    id?: string;
+  }>();
+
+  const servicesState = useSelector(
+  (state: RootState) => state?.services
+);
+
+const service = servicesState?.service ?? null;
+
+const detailsLoading =
+  servicesState?.detailsLoading ?? false;
+
+const saving =
+  servicesState?.saving ?? false;
+
+const error =
+  servicesState?.error ?? null;
+
+const success =
+  servicesState?.success ?? false;
 
   const [name, setName] = useState("");
+  const [serviceGroup, setServiceGroup] =
+    useState("General");
   const [category, setCategory] = useState("");
   const [price, setPrice] = useState("");
   const [duration, setDuration] = useState("");
-  const [description, setDescription] = useState("");
-  const [isActive, setIsActive] = useState(true);
-  const [selectedImage, setSelectedImage] = useState<ServiceImage | null>(null);
-  const [imagePreview, setImagePreview] = useState("");
-  const [loadingInitial, setLoadingInitial] = useState(true);
+  const [description, setDescription] =
+    useState("");
+  const [isActive, setIsActive] =
+    useState(true);
+
+  const [selectedImage, setSelectedImage] =
+    useState<ServiceImage | null>(null);
+
+  const [imagePreview, setImagePreview] =
+    useState("");
+
+  const [loadingInitial, setLoadingInitial] =
+    useState(true);
 
   useEffect(() => {
-    if (!id) {
-      Alert.alert(
-        "Error",
-        "Service ID is missing",
-        [
-          {
-            text: "OK",
-            onPress: () => router.back(),
-          },
-        ]
+  console.log("EDIT SERVICE ID:", id);
+
+  if (!id) {
+    console.log("EDIT SERVICE: ID MISSING");
+
+    setLoadingInitial(false);
+
+    Alert.alert(
+      "Error",
+      "Service ID is missing",
+      [
+        {
+          text: "OK",
+          onPress: () => router.back(),
+        },
+      ]
+    );
+
+    return;
+  }
+
+  console.log(
+    "EDIT SERVICE: FETCHING SERVICE:",
+    id
+  );
+
+  setLoadingInitial(true);
+
+  dispatch(getServiceById(id))
+    .unwrap()
+    .then((result) => {
+      console.log(
+        "EDIT SERVICE: SERVICE LOADED:",
+        result
       );
+
+      setLoadingInitial(false);
+    })
+    .catch((err) => {
+      console.log(
+        "EDIT SERVICE: FETCH ERROR:",
+        err
+      );
+
+      setLoadingInitial(false);
+    });
+}, [id, dispatch]);
+
+  useEffect(() => {
+    if (!service) {
       return;
     }
 
-    dispatch(getServiceById(id));
-  }, [id, dispatch]);
+    const currentService =
+      service as Service;
 
-  useEffect(() => {
-    if (!service) return;
+    setName(
+      currentService.name || ""
+    );
 
-    const currentService = service as Service;
+    setServiceGroup(
+      currentService.serviceGroup?.trim() ||
+        "General"
+    );
 
-    setName(currentService.name || "");
-    setCategory(currentService.category || "");
+    setCategory(
+      currentService.category || ""
+    );
+
     setPrice(
-      currentService.price !== undefined &&
+      currentService.price !==
+        undefined &&
         currentService.price !== null
         ? String(currentService.price)
         : ""
     );
+
     setDuration(
-      currentService.duration !== undefined &&
+      currentService.duration !==
+        undefined &&
         currentService.duration !== null
         ? String(currentService.duration)
         : "30"
     );
-    setDescription(currentService.description || "");
+
+    setDescription(
+      currentService.description || ""
+    );
+
     setIsActive(
-      currentService.isActive !== undefined
+      currentService.isActive !==
+        undefined
         ? currentService.isActive
         : true
     );
-    setImagePreview(currentService.image?.url || "");
+
+    setImagePreview(
+      currentService.image?.url || ""
+    );
+
     setSelectedImage(null);
     setLoadingInitial(false);
   }, [service]);
@@ -122,7 +210,9 @@ export default function EditServiceScreen() {
   }, [error]);
 
   useEffect(() => {
-    if (!success) return;
+    if (!success) {
+      return;
+    }
 
     Alert.alert(
       "Service Updated",
@@ -149,6 +239,7 @@ export default function EditServiceScreen() {
           "Permission Required",
           "Please allow photo library access to change the service image."
         );
+
         return;
       }
 
@@ -160,7 +251,10 @@ export default function EditServiceScreen() {
           quality: 0.85,
         });
 
-      if (result.canceled || !result.assets?.length) {
+      if (
+        result.canceled ||
+        !result.assets?.length
+      ) {
         return;
       }
 
@@ -182,7 +276,10 @@ export default function EditServiceScreen() {
 
       setImagePreview(asset.uri);
     } catch (err) {
-      console.log("IMAGE PICK ERROR:", err);
+      console.log(
+        "IMAGE PICK ERROR:",
+        err
+      );
 
       Alert.alert(
         "Error",
@@ -192,16 +289,36 @@ export default function EditServiceScreen() {
   };
 
   const validateForm = () => {
-    const trimmedName = name.trim();
-    const trimmedCategory = category.trim();
-    const trimmedPrice = price.trim();
-    const trimmedDuration = duration.trim();
+    const trimmedName =
+      name.trim();
+
+    const trimmedServiceGroup =
+      serviceGroup.trim();
+
+    const trimmedCategory =
+      category.trim();
+
+    const trimmedPrice =
+      price.trim();
+
+    const trimmedDuration =
+      duration.trim();
 
     if (!trimmedName) {
       Alert.alert(
         "Validation",
         "Service name is required."
       );
+
+      return false;
+    }
+
+    if (!trimmedServiceGroup) {
+      Alert.alert(
+        "Validation",
+        "Service group is required."
+      );
+
       return false;
     }
 
@@ -210,6 +327,7 @@ export default function EditServiceScreen() {
         "Validation",
         "Service category is required."
       );
+
       return false;
     }
 
@@ -218,10 +336,12 @@ export default function EditServiceScreen() {
         "Validation",
         "Service price is required."
       );
+
       return false;
     }
 
-    const numericPrice = Number(trimmedPrice);
+    const numericPrice =
+      Number(trimmedPrice);
 
     if (
       Number.isNaN(numericPrice) ||
@@ -231,6 +351,7 @@ export default function EditServiceScreen() {
         "Validation",
         "Please enter a valid service price."
       );
+
       return false;
     }
 
@@ -239,6 +360,7 @@ export default function EditServiceScreen() {
         "Validation",
         "Service duration is required."
       );
+
       return false;
     }
 
@@ -253,6 +375,7 @@ export default function EditServiceScreen() {
         "Validation",
         "Duration must be at least 1 minute."
       );
+
       return false;
     }
 
@@ -265,6 +388,7 @@ export default function EditServiceScreen() {
         "Error",
         "Service ID is missing."
       );
+
       return;
     }
 
@@ -275,16 +399,35 @@ export default function EditServiceScreen() {
     try {
       dispatch(clearServiceError());
 
+      const cleanServiceGroup =
+        serviceGroup.trim() ||
+        "General";
+
       await dispatch(
         updateService({
           id,
+
           name: name.trim(),
-          category: category.trim(),
+
+          serviceGroup:
+            cleanServiceGroup,
+
+          category:
+            category.trim(),
+
           price: Number(price),
-          duration: Number(duration),
-          description: description.trim(),
+
+          duration:
+            Number(duration),
+
+          description:
+            description.trim(),
+
           isActive,
-          image: selectedImage || undefined,
+
+          image:
+            selectedImage ||
+            undefined,
         })
       ).unwrap();
     } catch (err: any) {
@@ -304,13 +447,23 @@ export default function EditServiceScreen() {
   };
 
   const handleBack = () => {
-    if (saving) return;
+    if (saving) {
+      return;
+    }
+
     router.back();
   };
 
-  if (detailsLoading || loadingInitial) {
+  if (
+    detailsLoading ||
+    loadingInitial
+  ) {
     return (
-      <View style={styles.loadingContainer}>
+      <View
+        style={
+          styles.loadingContainer
+        }
+      >
         <StatusBar style="dark" />
 
         <ActivityIndicator
@@ -318,12 +471,19 @@ export default function EditServiceScreen() {
           color="#70243A"
         />
 
-        <Text style={styles.loadingTitle}>
+        <Text
+          style={styles.loadingTitle}
+        >
           Loading service...
         </Text>
 
-        <Text style={styles.loadingSubtitle}>
-          Please wait while we load the service details.
+        <Text
+          style={
+            styles.loadingSubtitle
+          }
+        >
+          Please wait while we load the
+          service details.
         </Text>
       </View>
     );
@@ -331,20 +491,34 @@ export default function EditServiceScreen() {
 
   if (!service && error) {
     return (
-      <View style={styles.loadingContainer}>
+      <View
+        style={
+          styles.loadingContainer
+        }
+      >
         <StatusBar style="dark" />
 
-        <View style={styles.errorIconBox}>
-          <Text style={styles.errorIcon}>
+        <View
+          style={styles.errorIconBox}
+        >
+          <Text
+            style={styles.errorIcon}
+          >
             !
           </Text>
         </View>
 
-        <Text style={styles.loadingTitle}>
+        <Text
+          style={styles.loadingTitle}
+        >
           Unable to load service
         </Text>
 
-        <Text style={styles.loadingSubtitle}>
+        <Text
+          style={
+            styles.loadingSubtitle
+          }
+        >
           {String(error)}
         </Text>
 
@@ -352,20 +526,34 @@ export default function EditServiceScreen() {
           style={styles.retryButton}
           onPress={() => {
             if (id) {
-              dispatch(getServiceById(id));
+              dispatch(
+                getServiceById(id)
+              );
             }
           }}
         >
-          <Text style={styles.retryButtonText}>
+          <Text
+            style={
+              styles.retryButtonText
+            }
+          >
             Try Again
           </Text>
         </Pressable>
 
         <Pressable
-          style={styles.backSecondaryButton}
-          onPress={() => router.back()}
+          style={
+            styles.backSecondaryButton
+          }
+          onPress={() =>
+            router.back()
+          }
         >
-          <Text style={styles.backSecondaryText}>
+          <Text
+            style={
+              styles.backSecondaryText
+            }
+          >
             Go Back
           </Text>
         </Pressable>
@@ -395,59 +583,94 @@ export default function EditServiceScreen() {
               onPress={handleBack}
               disabled={saving}
             >
-              <Text style={styles.backIcon}>
+              <Text
+                style={styles.backIcon}
+              >
                 ‹
               </Text>
             </Pressable>
 
-            <View style={styles.headerCenter}>
-              <Text style={styles.eyebrow}>
+            <View
+              style={styles.headerCenter}
+            >
+              <Text
+                style={styles.eyebrow}
+              >
                 SALON MANAGEMENT
               </Text>
 
-              <Text style={styles.title}>
+              <Text
+                style={styles.title}
+              >
                 Edit Service
               </Text>
 
-              <Text style={styles.subtitle}>
+              <Text
+                style={styles.subtitle}
+              >
                 Update your service details
               </Text>
             </View>
 
-            <View style={styles.headerSpacer} />
+            <View
+              style={styles.headerSpacer}
+            />
           </View>
 
           <ScrollView
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={
+              false
+            }
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={
               styles.scrollContent
             }
           >
             <View style={styles.heroCard}>
-              <View style={styles.heroIconBox}>
-                <Text style={styles.heroIcon}>
+              <View
+                style={
+                  styles.heroIconBox
+                }
+              >
+                <Text
+                  style={styles.heroIcon}
+                >
                   ✦
                 </Text>
               </View>
 
-              <View style={styles.heroTextBox}>
-                <Text style={styles.heroTitle}>
+              <View
+                style={styles.heroTextBox}
+              >
+                <Text
+                  style={styles.heroTitle}
+                >
                   Service Information
                 </Text>
 
-                <Text style={styles.heroSubtitle}>
-                  Keep your pricing, duration and service details up to date.
+                <Text
+                  style={
+                    styles.heroSubtitle
+                  }
+                >
+                  Keep your pricing, duration
+                  and service details up to date.
                 </Text>
               </View>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
+              <Text
+                style={styles.sectionTitle}
+              >
                 Service Image
               </Text>
 
-              <Text style={styles.sectionSubtitle}>
+              <Text
+                style={
+                  styles.sectionSubtitle
+                }
+              >
                 Change the image if you want.
               </Text>
 
@@ -461,7 +684,9 @@ export default function EditServiceScreen() {
                     source={{
                       uri: imagePreview,
                     }}
-                    style={styles.previewImage}
+                    style={
+                      styles.previewImage
+                    }
                   />
                 ) : (
                   <View
@@ -487,7 +712,9 @@ export default function EditServiceScreen() {
                   </View>
                 )}
 
-                <View style={styles.imageOverlay}>
+                <View
+                  style={styles.imageOverlay}
+                >
                   <View
                     style={
                       styles.changeImageButton
@@ -514,11 +741,17 @@ export default function EditServiceScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
+              <Text
+                style={styles.sectionTitle}
+              >
                 Basic Details
               </Text>
 
-              <Text style={styles.sectionSubtitle}>
+              <Text
+                style={
+                  styles.sectionSubtitle
+                }
+              >
                 Update the service information.
               </Text>
 
@@ -527,9 +760,15 @@ export default function EditServiceScreen() {
                   Service Name
                 </Text>
 
-                <View style={styles.inputContainer}>
+                <View
+                  style={
+                    styles.inputContainer
+                  }
+                >
                   <Text
-                    style={styles.inputIcon}
+                    style={
+                      styles.inputIcon
+                    }
                   >
                     ✦
                   </Text>
@@ -548,19 +787,68 @@ export default function EditServiceScreen() {
 
               <View style={styles.field}>
                 <Text style={styles.label}>
+                  Service Group
+                </Text>
+
+                <View
+                  style={
+                    styles.inputContainer
+                  }
+                >
+                  <Text
+                    style={
+                      styles.inputIcon
+                    }
+                  >
+                    ▦
+                  </Text>
+
+                  <TextInput
+                    value={serviceGroup}
+                    onChangeText={
+                      setServiceGroup
+                    }
+                    placeholder="Hair Services, Skin Services..."
+                    placeholderTextColor="#B5A8AB"
+                    style={styles.input}
+                    editable={!saving}
+                    autoCapitalize="words"
+                  />
+                </View>
+
+                <Text
+                  style={
+                    styles.helperText
+                  }
+                >
+                  Services with the same group
+                  will appear together.
+                </Text>
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.label}>
                   Category
                 </Text>
 
-                <View style={styles.inputContainer}>
+                <View
+                  style={
+                    styles.inputContainer
+                  }
+                >
                   <Text
-                    style={styles.inputIcon}
+                    style={
+                      styles.inputIcon
+                    }
                   >
                     ◇
                   </Text>
 
                   <TextInput
                     value={category}
-                    onChangeText={setCategory}
+                    onChangeText={
+                      setCategory
+                    }
                     placeholder="Hair, Facial, Spa..."
                     placeholderTextColor="#B5A8AB"
                     style={styles.input}
@@ -577,7 +865,9 @@ export default function EditServiceScreen() {
                     styles.halfField,
                   ]}
                 >
-                  <Text style={styles.label}>
+                  <Text
+                    style={styles.label}
+                  >
                     Price
                   </Text>
 
@@ -596,7 +886,9 @@ export default function EditServiceScreen() {
 
                     <TextInput
                       value={price}
-                      onChangeText={setPrice}
+                      onChangeText={
+                        setPrice
+                      }
                       placeholder="0"
                       placeholderTextColor="#B5A8AB"
                       style={styles.input}
@@ -612,7 +904,9 @@ export default function EditServiceScreen() {
                     styles.halfField,
                   ]}
                 >
-                  <Text style={styles.label}>
+                  <Text
+                    style={styles.label}
+                  >
                     Duration
                   </Text>
 
@@ -631,7 +925,9 @@ export default function EditServiceScreen() {
 
                     <TextInput
                       value={duration}
-                      onChangeText={setDuration}
+                      onChangeText={
+                        setDuration
+                      }
                       placeholder="30"
                       placeholderTextColor="#B5A8AB"
                       style={styles.input}
@@ -672,7 +968,9 @@ export default function EditServiceScreen() {
 
                   <TextInput
                     value={description}
-                    onChangeText={setDescription}
+                    onChangeText={
+                      setDescription
+                    }
                     placeholder="Describe this service..."
                     placeholderTextColor="#B5A8AB"
                     style={[
@@ -688,12 +986,19 @@ export default function EditServiceScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
+              <Text
+                style={styles.sectionTitle}
+              >
                 Service Status
               </Text>
 
-              <Text style={styles.sectionSubtitle}>
-                Control whether this service is available for booking.
+              <Text
+                style={
+                  styles.sectionSubtitle
+                }
+              >
+                Control whether this service is
+                available for booking.
               </Text>
 
               <View style={styles.statusCard}>
@@ -719,10 +1024,14 @@ export default function EditServiceScreen() {
                   </View>
 
                   <View
-                    style={styles.statusTextBox}
+                    style={
+                      styles.statusTextBox
+                    }
                   >
                     <Text
-                      style={styles.statusTitle}
+                      style={
+                        styles.statusTitle
+                      }
                     >
                       {isActive
                         ? "Active Service"
@@ -743,7 +1052,9 @@ export default function EditServiceScreen() {
 
                 <Switch
                   value={isActive}
-                  onValueChange={setIsActive}
+                  onValueChange={
+                    setIsActive
+                  }
                   disabled={saving}
                   trackColor={{
                     false: "#D9CCCF",
@@ -760,7 +1071,9 @@ export default function EditServiceScreen() {
 
             <View style={styles.warningCard}>
               <View
-                style={styles.warningIconBox}
+                style={
+                  styles.warningIconBox
+                }
               >
                 <Text
                   style={styles.warningIcon}
@@ -770,18 +1083,26 @@ export default function EditServiceScreen() {
               </View>
 
               <View
-                style={styles.warningTextBox}
+                style={
+                  styles.warningTextBox
+                }
               >
                 <Text
-                  style={styles.warningTitle}
+                  style={
+                    styles.warningTitle
+                  }
                 >
                   Before saving
                 </Text>
 
                 <Text
-                  style={styles.warningText}
+                  style={
+                    styles.warningText
+                  }
                 >
-                  Price and duration changes will be used for future service bookings and bills.
+                  Price and duration changes will
+                  be used for future service bookings
+                  and bills.
                 </Text>
               </View>
             </View>
@@ -826,7 +1147,9 @@ export default function EditServiceScreen() {
             </Pressable>
 
             <Pressable
-              style={styles.cancelButton}
+              style={
+                styles.cancelButton
+              }
               onPress={handleBack}
               disabled={saving}
             >
@@ -852,12 +1175,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FCF7F4",
   },
+
   safeArea: {
     flex: 1,
   },
+
   keyboard: {
     flex: 1,
   },
+
   header: {
     minHeight: 94,
     paddingHorizontal: 17,
@@ -869,6 +1195,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F0E5E2",
     backgroundColor: "#FCF7F4",
   },
+
   backButton: {
     width: 43,
     height: 43,
@@ -877,25 +1204,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   backIcon: {
     color: "#70243A",
     fontSize: 31,
     lineHeight: 34,
     marginTop: -3,
   },
+
   headerCenter: {
     flex: 1,
     paddingHorizontal: 12,
   },
+
   headerSpacer: {
     width: 43,
   },
+
   eyebrow: {
     color: "#A09195",
     fontSize: 7,
     fontWeight: "800",
     letterSpacing: 1.5,
   },
+
   title: {
     color: "#602032",
     fontSize: 24,
@@ -903,16 +1235,19 @@ const styles = StyleSheet.create({
     fontFamily: "serif",
     marginTop: 2,
   },
+
   subtitle: {
     color: "#9B8E91",
     fontSize: 9,
     marginTop: 2,
   },
+
   scrollContent: {
     paddingHorizontal: 17,
     paddingTop: 16,
     paddingBottom: 30,
   },
+
   heroCard: {
     minHeight: 100,
     borderRadius: 22,
@@ -922,6 +1257,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
+
   heroIconBox: {
     width: 54,
     height: 54,
@@ -930,34 +1266,41 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   heroIcon: {
     color: "#76253A",
     fontSize: 22,
   },
+
   heroTextBox: {
     flex: 1,
     paddingLeft: 13,
   },
+
   heroTitle: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "800",
   },
+
   heroSubtitle: {
     color: "#EBD4D5",
     fontSize: 9,
     lineHeight: 14,
     marginTop: 5,
   },
+
   section: {
     marginBottom: 21,
   },
+
   sectionTitle: {
     color: "#342A2D",
     fontSize: 19,
     fontFamily: "serif",
     fontWeight: "600",
   },
+
   sectionSubtitle: {
     color: "#9B8E91",
     fontSize: 8,
@@ -965,6 +1308,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
     marginBottom: 11,
   },
+
   imageCard: {
     height: 205,
     borderRadius: 20,
@@ -974,25 +1318,30 @@ const styles = StyleSheet.create({
     borderColor: "#F0E5E2",
     position: "relative",
   },
+
   previewImage: {
     width: "100%",
     height: "100%",
   },
+
   imagePlaceholder: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
+
   imagePlaceholderIcon: {
     color: "#76253A",
     fontSize: 28,
   },
+
   imagePlaceholderTitle: {
     color: "#8E8084",
     fontSize: 10,
     fontWeight: "700",
     marginTop: 8,
   },
+
   imageOverlay: {
     position: "absolute",
     left: 0,
@@ -1001,34 +1350,41 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: "flex-end",
   },
+
   changeImageButton: {
     minHeight: 36,
     paddingHorizontal: 13,
     borderRadius: 11,
-    backgroundColor: "rgba(112,36,58,0.94)",
+    backgroundColor:
+      "rgba(112,36,58,0.94)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
   },
+
   changeImageIcon: {
     color: "#FFFFFF",
     fontSize: 13,
     marginRight: 6,
   },
+
   changeImageText: {
     color: "#FFFFFF",
     fontSize: 9,
     fontWeight: "800",
   },
+
   field: {
     marginBottom: 14,
   },
+
   label: {
     color: "#514549",
     fontSize: 9,
     fontWeight: "800",
     marginBottom: 6,
   },
+
   inputContainer: {
     minHeight: 48,
     borderRadius: 13,
@@ -1039,6 +1395,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 12,
   },
+
   inputIcon: {
     width: 23,
     color: "#8B3B50",
@@ -1046,6 +1403,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     textAlign: "center",
   },
+
   input: {
     flex: 1,
     color: "#342A2D",
@@ -1054,31 +1412,38 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     minHeight: 46,
   },
+
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
   },
+
   halfField: {
     width: "48%",
   },
+
   helperText: {
     color: "#A09195",
     fontSize: 7,
     marginTop: 4,
   },
+
   textAreaContainer: {
     minHeight: 110,
     alignItems: "flex-start",
     paddingTop: 12,
   },
+
   textAreaIcon: {
     marginTop: 2,
   },
+
   textArea: {
     minHeight: 90,
     paddingTop: 0,
     lineHeight: 17,
   },
+
   statusCard: {
     minHeight: 78,
     borderRadius: 18,
@@ -1091,11 +1456,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+
   statusLeft: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
   },
+
   statusIconBox: {
     width: 43,
     height: 43,
@@ -1103,39 +1470,48 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   statusIconActive: {
     backgroundColor: "#F2F8F2",
   },
+
   statusIconInactive: {
     backgroundColor: "#F4EEEE",
   },
+
   statusDotLarge: {
     width: 12,
     height: 12,
     borderRadius: 6,
   },
+
   dotActive: {
     backgroundColor: "#5B9A67",
   },
+
   dotInactive: {
     backgroundColor: "#9C8E91",
   },
+
   statusTextBox: {
     flex: 1,
     paddingLeft: 10,
     paddingRight: 8,
   },
+
   statusTitle: {
     color: "#342A2D",
     fontSize: 10,
     fontWeight: "800",
   },
+
   statusSubtitle: {
     color: "#9A8C90",
     fontSize: 7,
     lineHeight: 12,
     marginTop: 3,
   },
+
   warningCard: {
     minHeight: 74,
     borderRadius: 17,
@@ -1147,6 +1523,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 18,
   },
+
   warningIconBox: {
     width: 36,
     height: 36,
@@ -1155,26 +1532,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   warningIcon: {
     color: "#9A6330",
     fontSize: 15,
     fontWeight: "900",
   },
+
   warningTextBox: {
     flex: 1,
     paddingLeft: 10,
   },
+
   warningTitle: {
     color: "#654A37",
     fontSize: 9,
     fontWeight: "800",
   },
+
   warningText: {
     color: "#9A8170",
     fontSize: 7,
     lineHeight: 12,
     marginTop: 3,
   },
+
   saveButton: {
     minHeight: 52,
     borderRadius: 15,
@@ -1184,20 +1566,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 20,
   },
+
   saveButtonDisabled: {
     opacity: 0.65,
   },
+
   saveIcon: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "900",
     marginRight: 8,
   },
+
   saveText: {
     color: "#FFFFFF",
     fontSize: 11,
     fontWeight: "900",
   },
+
   cancelButton: {
     height: 45,
     borderRadius: 14,
@@ -1206,14 +1592,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 9,
   },
+
   cancelText: {
     color: "#70243A",
     fontSize: 10,
     fontWeight: "800",
   },
+
   bottomSpace: {
     height: 35,
   },
+
   loadingContainer: {
     flex: 1,
     backgroundColor: "#FCF7F4",
@@ -1221,12 +1610,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 30,
   },
+
   loadingTitle: {
     color: "#342A2D",
     fontSize: 16,
     fontWeight: "800",
     marginTop: 15,
   },
+
   loadingSubtitle: {
     color: "#9A8C90",
     fontSize: 9,
@@ -1234,6 +1625,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 6,
   },
+
   errorIconBox: {
     width: 58,
     height: 58,
@@ -1242,11 +1634,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   errorIcon: {
     color: "#76253A",
     fontSize: 25,
     fontWeight: "900",
   },
+
   retryButton: {
     minWidth: 120,
     height: 42,
@@ -1257,11 +1651,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 17,
     marginTop: 17,
   },
+
   retryButtonText: {
     color: "#FFFFFF",
     fontSize: 10,
     fontWeight: "800",
   },
+
   backSecondaryButton: {
     minWidth: 120,
     height: 42,
@@ -1272,6 +1668,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 17,
     marginTop: 9,
   },
+
   backSecondaryText: {
     color: "#70243A",
     fontSize: 10,

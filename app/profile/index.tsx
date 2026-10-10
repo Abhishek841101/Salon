@@ -132,7 +132,7 @@ export default function ProfileScreen() {
 
             <View style={styles.headerCenter}>
               <Text style={styles.brand}>
-                GLOW SALON
+                COZ`E SALON
               </Text>
 
               <Text style={styles.title}>
@@ -173,7 +173,7 @@ export default function ProfileScreen() {
                 </Text>
 
                 <Text style={styles.name}>
-                  Glow Guest
+                  COZ`E Guest
                 </Text>
 
                 <Text style={styles.email}>
@@ -364,7 +364,7 @@ export default function ProfileScreen() {
 
             <MenuItem
               icon="i"
-              title="About Glow Salon"
+              title="About COZ`E Salon"
               subtitle="Learn more about us"
               onPress={() => {}}
             />
@@ -402,7 +402,7 @@ export default function ProfileScreen() {
           </Pressable>
 
           <Text style={styles.version}>
-            GLOW SALON • CLIENT APP
+            COZ`E SALON • CLIENT APP
           </Text>
 
           <View style={styles.bottomSpace} />

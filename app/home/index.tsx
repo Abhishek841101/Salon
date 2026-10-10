@@ -25,7 +25,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useDispatch, useSelector } from "react-redux";
 import { apiRequest } from "../../src/api/api";
-
+import Logo from "../../assets/images/logo.png";
 // =========================================================
 // REDUX
 // =========================================================
@@ -422,7 +422,7 @@ export default function HomeScreen() {
   const [totalRevenueBills, setTotalRevenueBills] =
     React.useState(0);
   const [revenuePeriod, setRevenuePeriod] =
-    React.useState<DashboardRevenuePeriod>("month");
+    React.useState<DashboardRevenuePeriod>("today");
   const [revenueLoading, setRevenueLoading] =
     React.useState(false);
 
@@ -792,45 +792,28 @@ export default function HomeScreen() {
                   HEADER
               ================================================= */}
 
-              <View
-                style={styles.header}
-              >
-                <View>
-                  <Text
-                    style={
-                      styles.smallText
-                    }
-                  >
-                    ADMIN DASHBOARD
-                  </Text>
+              <View style={styles.header}>
+  <View>
+    <Text style={styles.smallText}>
+      ADMIN DASHBOARD
+    </Text>
 
-                  <Text
-                    style={styles.logo}
-                  >
-                    Glow Salon
-                  </Text>
-                </View>
+    <Text style={styles.logo}>
+      GLOW Salon
+    </Text>
+  </View>
 
-                <Pressable
-                  style={
-                    styles.profileButton
-                  }
-                  onPress={() =>
-                    router.push(
-                      "/profile"
-                    )
-                  }
-                >
-                  <Text
-                    style={
-                      styles.profileInitial
-                    }
-                  >
-                    G
-                  </Text>
-                </Pressable>
-              </View>
-
+  <Pressable
+    style={styles.profileButton}
+    onPress={() => router.push("/profile")}
+  >
+    <Image
+      source={Logo}
+      style={styles.profileLogo}
+      resizeMode="contain"
+    />
+  </Pressable>
+</View>
               {/* =================================================
                   ERROR
               ================================================= */}
@@ -890,21 +873,23 @@ export default function HomeScreen() {
 
   <View style={styles.heroOverlay} />
 
-  <View style={styles.heroBrand}>
-    <View style={styles.heroBrandIcon}>
-      <Text style={styles.heroBrandIconText}>✦</Text>
-    </View>
+  {/* <View style={styles.heroBrand}>
+  <Image
+    source={Logo}
+    style={styles.heroLogo}
+    resizeMode="contain"
+  />
 
-    <View>
-      <Text style={styles.heroBrandName}>
-        GLOW SALON
-      </Text>
+  <View>
+    <Text style={styles.heroBrandName}>
+      GLOW SALON
+    </Text>
 
-      <Text style={styles.heroBrandSub}>
-        BEAUTY • STYLE • CARE
-      </Text>
-    </View>
+    <Text style={styles.heroBrandSub}>
+      BEAUTY • STYLE • CARE
+    </Text>
   </View>
+</View> */}
 
   <View style={styles.heroBottom}>
     <View style={styles.heroWelcome}>
@@ -2603,7 +2588,12 @@ heroOverlay: {
   bottom: 0,
   backgroundColor: "rgba(38, 10, 20, 0.32)",
 },
-
+heroLogo: {
+  width: 48,
+  height: 48,
+  borderRadius: 14,
+  marginRight: 10,
+},
 heroBrand: {
   position: "absolute",
   top: 18,
@@ -2621,7 +2611,11 @@ heroBrandIcon: {
   backgroundColor: "rgba(255,255,255,0.92)",
   marginRight: 10,
 },
-
+profileLogo: {
+  width: 42,
+  height: 42,
+  borderRadius: 21,
+},
 heroBrandIconText: {
   fontSize: 18,
   fontWeight: "700",
